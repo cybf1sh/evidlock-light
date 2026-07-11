@@ -69,6 +69,8 @@ def build_parser() -> argparse.ArgumentParser:
     ro_set.add_argument("path")
     ro_clear = ro_sub.add_parser("clear")
     ro_clear.add_argument("path")
+    ro_check = ro_sub.add_parser("check")
+    ro_check.add_argument("path")
 
     net_parser = sub.add_parser("network", help="Network analyzer i skaner.")
     net_sub = net_parser.add_subparsers(dest="network_command", required=True)
@@ -79,6 +81,7 @@ def build_parser() -> argparse.ArgumentParser:
     pcap.add_argument("path")
     pcap.add_argument("--out")
     net_sub.add_parser("deps", help="Status TShark.")
+    net_sub.add_parser("install", help="Instalacja Wireshark/TShark przez winget.")
 
     mem_parser = sub.add_parser("memory", help="WinPmem i Volatility 3.")
     mem_sub = mem_parser.add_subparsers(dest="memory_command", required=True)
@@ -86,6 +89,12 @@ def build_parser() -> argparse.ArgumentParser:
     vol = mem_sub.add_parser("volatility")
     vol.add_argument("--image", required=True)
     vol.add_argument("--plugin", required=True)
+    compare_memory = mem_sub.add_parser("compare")
+    compare_memory.add_argument("--a", required=True)
+    compare_memory.add_argument("--b", required=True)
+    acquire = mem_sub.add_parser("acquire")
+    acquire.add_argument("--out", required=True)
+    mem_sub.add_parser("install-volatility")
 
     system_parser = sub.add_parser("system", help="Rejestr, logi, diagnostyka.")
     system_sub = system_parser.add_subparsers(dest="system_command", required=True)
@@ -127,16 +136,32 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == "archive":
         result = {"archive": str(archive.create_zip(args.src, args.out))}
     elif args.command == "readonly":
-        result = readonly.apply_readonly(args.path) if args.readonly_command == "set" else readonly.clear_readonly(args.path)
+        if args.readonly_command == "set":
+            result = readonly.apply_readonly(args.path)
+        elif args.readonly_command == "clear":
+            result = readonly.clear_readonly(args.path)
+        else:
+            result = readonly.check_readonly(args.path)
     elif args.command == "network":
         if args.network_command == "scan":
             result = network.scan_tcp(args.host, network.parse_ports(args.ports))
         elif args.network_command == "pcap":
             result = network.analyze_pcap_basic(args.path, args.out)
-        else:
+        elif args.network_command == "deps":
             result = network.tshark_status()
+        else:
+            result = network.install_tshark()
     elif args.command == "memory":
-        result = memory.dependency_status(Path.cwd()) if args.memory_command == "deps" else memory.run_volatility(args.image, args.plugin, Path.cwd())
+        if args.memory_command == "deps":
+            result = memory.dependency_status(Path.cwd())
+        elif args.memory_command == "volatility":
+            result = memory.run_volatility(args.image, args.plugin, Path.cwd())
+        elif args.memory_command == "compare":
+            result = memory.compare_dumps(args.a, args.b)
+        elif args.memory_command == "acquire":
+            result = memory.acquire_memory(args.out)
+        else:
+            result = memory.install_volatility()
     elif args.command == "system":
         if args.system_command == "diagnostics":
             result = {"app": APP_NAME, "version": APP_VERSION, "admin": winapi.is_admin(), "media_count": len(media.list_media())}

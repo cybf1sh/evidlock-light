@@ -10,19 +10,27 @@ DOCUMENTS = [
     },
     {
         "title": "Network",
-        "body": "Network zawiera skaner portów TCP oraz kontrolę TShark. Analizator PCAP będzie rozbudowywany jako osobny moduł.",
+        "body": "Network zawiera skaner portów TCP, kontrolę TShark i czytelny status zależności. Gdy TShark jest niedostępny, przycisk instalacji uruchamia oficjalny pakiet Wireshark przez winget.",
     },
     {
         "title": "Pamięć",
-        "body": "Moduł pamięci sprawdza obecność WinPmem i Volatility 3 oraz uruchamia analizę Volatility dla wskazanego obrazu.",
+        "body": "Manager pamięci obsługuje zrzuty A/B, SHA-256, porównanie, akwizycję WinPmem i pluginy Volatility 3. Status pokazuje GOTOWY albo BRAK oraz udostępnia instalację Volatility i pobranie lub wskazanie WinPmem.",
     },
     {
         "title": "Zabezpieczenie danych",
         "body": "Dostępne są SHA-256, manifest JSON, weryfikacja manifestu, archiwizacja ZIP, kopia 1:1 i porównanie A/B. Długie operacje pokazują pasek postępu i log. Kopia jest po zapisie weryfikowana przez SHA-256 i tworzy raport PDF, TXT oraz JSON.",
     },
     {
-        "title": "Szybkie akcje",
-        "body": "Szybkie akcje zajmują centralny panel aplikacji. Kafle można dodawać z biblioteki tematycznej, usuwać, przeciągać oraz przesuwać przyciskami góra/dół. Kolejność jest zapisywana w profilu użytkownika.",
+        "title": "Dashboard i menu narzędzi",
+        "body": "Dashboard zawiera zintegrowaną strefę przeciągania i narzędzia podręczne. Lewe menu ma rozwijane Narzędzia z kategoriami Dane i integralność, Nośniki i raporty, Sieć i pamięć oraz Windows i system. Kolejność odpowiada zakładkom Dashboardu.",
+    },
+    {
+        "title": "Ochrona read-only",
+        "body": "Jeden panel pozwala sprawdzić liczbę plików chronionych i zapisywalnych, ustawić atrybut read-only albo go usunąć dla pliku lub zawartości katalogu.",
+    },
+    {
+        "title": "Jedna instancja",
+        "body": "Mutex Windows blokuje uruchomienie drugiej instancji EvidLock Light. Kolejne uruchomienie przywraca aktywne główne okno i kończy drugi proces.",
     },
     {
         "title": "Build i kopie programu",

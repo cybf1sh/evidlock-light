@@ -17,18 +17,21 @@ EvidLock Light to samodzielna, modułowa aplikacja do codziennej pracy techniczn
 - bez dashboardu sprawy, kółka integralności, numeru sprawy i OCR,
 - prosta dokumentacja tekstowa z wyszukiwarką,
 - tryb administratora dostępny z GUI i CLI.
+- tylko jedna działająca instancja programu; kolejne uruchomienie przywraca istniejące okno.
 
 ## Moduły
 
 Główny ekran pokazuje tylko aktywne narzędzia w czterech zakładkach: `Dane i integralność`, `Nośniki i raporty`, `Sieć i pamięć` oraz `Windows i system`. Dodawanie, usuwanie i kolejność narzędzi są dostępne w osobnym konfiguratorze otwieranym ikoną koła zębatego. Nad panelem znajduje się duża strefa przeciągania plików i katalogów.
 
+Lewe menu zawiera `Dashboard`, rozwijane `Narzędzia` z tymi samymi czterema kategoriami, a następnie `Raporty`, `Konsola` i `O programie`. Widok kategorii korzysta z kompaktowych, dwukolumnowych kafli.
+
 - Nośniki: jedno odświeżane okno dysków, oryginalne ikony PNG USB/lokalny/sieciowy/optyczny z EvidLockV2, zajętość oraz raport PDF/JSON.
 - Hash SHA-256: pliki, katalogi, manifest JSON/CSV, weryfikacja manifestu.
 - Zabezpieczenie danych: archiwizacja ZIP, kopia 1:1, porównanie A/B.
 - Kopia i porównanie: osobne okno, pasek postępu, automatyczna weryfikacja SHA-256 oraz raport PDF/TXT/JSON.
-- Atrybut tylko do odczytu: ustawianie i zdejmowanie atrybutu dla plików/katalogów.
-- Network: skaner portów TCP, podstawowa diagnostyka hosta, kontrola zależności TShark dla analiz PCAP.
-- Pamięć: kontrola WinPmem i Volatility 3, punkty startowe do akwizycji i analizy.
+- Atrybut tylko do odczytu: jeden panel sprawdzania statusu, ustawiania i zdejmowania atrybutu dla plików/katalogów.
+- Network: skaner portów TCP, diagnostyka hosta, status TShark oraz przycisk instalacji oficjalnego Wireshark przez winget.
+- Pamięć: manager zrzutów A/B, SHA-256, porównanie, akwizycja WinPmem, pluginy Volatility 3 oraz przyciski instalacji/pobierania zależności.
 - Rejestr Windows: wybór hive i fizycznych gałęzi, `.hiv`, `.reg`, CSV, XLSX, TXT, PDF, JSON, SHA-256 i read-only.
 - Logi Windows: tryb szybki/pełny, zakres 24h/7d/30d/cały/własny, limit, sortowanie, Application/Security/Setup/System, EVTX, CSV, XLSX, TXT, PDF, JSON, SHA-256 i read-only.
 - Raporty: PDF, JSON, TXT, CSV i XLSX zależnie od modułu.
@@ -57,7 +60,10 @@ Przykładowe komendy w konsoli aplikacji:
 - `copy compare --a C:\A --b D:\B`
 - `readonly set C:\folder`
 - `readonly clear C:\folder`
+- `readonly check C:\folder`
 - `network scan --host 192.168.1.1 --ports 22,80,443`
+- `network deps`
+- `memory compare --a C:\ram-a.raw --b D:\ram-b.raw`
 - `system journal-export --json`
 - `system logs-export --json`
 - `system diagnostics --json`

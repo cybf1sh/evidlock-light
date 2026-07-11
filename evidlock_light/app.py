@@ -20,14 +20,16 @@ import customtkinter as ctk
 from . import APP_NAME, APP_VERSION
 from . import cli, themes, winapi
 from .config import ensure_runtime_dirs
-from .services import archive, capture, copying, docs, hashing, journal, media, memory, network, readonly, registry, windows_logs
+from .services import archive, capture, copying, docs, hashing, journal, media, memory, network, registry, windows_logs
 from .ui.copy_tool import CopyCompareDialog
 from .ui.drop_zone import DropZone
 from .ui.media_dialog import MediaDialog
+from .ui.memory_manager import MemoryManagerDialog
 from .ui.logo import EvidLockLogo
 from .ui.progress import ProgressDialog
 from .ui.report_window import ReportWindow
 from .ui.registry_dialog import RegistryExportDialog
+from .ui.readonly_dialog import ReadOnlyDialog
 from .ui.windows_logs_dialog import WindowsLogsDialog
 
 try:
@@ -68,7 +70,10 @@ class EvidLockLightApp(ctk.CTk):
         self.minsize(1040, 640)
         self.colors = themes.palette(self.skin)
         self._apply_ctk_skin_defaults()
-        self.current_page = "Szybkie akcje"
+        self.current_page = "Dashboard"
+        self.selected_tool_category = QUICK_CATEGORIES[0]
+        self.tools_menu_expanded = True
+        self.tools_submenu: ctk.CTkFrame | None = None
         self.nav_buttons: dict[str, ctk.CTkButton] = {}
         self.detached_windows: list[ctk.CTkToplevel] = []
         self.output: ctk.CTkTextbox | None = None
@@ -88,13 +93,15 @@ class EvidLockLightApp(ctk.CTk):
         self.media_dialog: MediaDialog | None = None
         self.registry_dialog: RegistryExportDialog | None = None
         self.windows_logs_dialog: WindowsLogsDialog | None = None
+        self.readonly_dialog: ReadOnlyDialog | None = None
+        self.memory_manager_dialog: MemoryManagerDialog | None = None
         self.last_report_title = "Bieżący raport"
         self.last_report_data: object = {"status": "Brak wyników do wyświetlenia."}
         self.quick_drag_category: str | None = None
         self.dropped_paths: list[str] = []
         self.drop_zone: DropZone | None = None
         self._build_shell()
-        self.show_page("Szybkie akcje")
+        self.show_page("Dashboard")
         journal.log_event("INFO", "UI", "Uruchomiono EvidLock Light", {"version": APP_VERSION, "drag_drop": self.drag_drop_available})
 
     def _build_shell(self) -> None:
@@ -114,36 +121,33 @@ class EvidLockLightApp(ctk.CTk):
         ctk.CTkLabel(brand_text, text="EvidLock", text_color=self.colors["brand"], font=(FONT, 17, "bold"), anchor="w").pack(fill=tk.X)
         ctk.CTkLabel(brand_text, text="Light Workstation", text_color=self.colors["sidebar_muted"], font=(FONT, 9), anchor="w").pack(fill=tk.X)
 
-        for label in (
-            "Dashboard",
-            "Szybkie akcje",
-            "Nośniki",
-            "Zabezpieczanie",
-            "Narzędzia",
-            "Network",
-            "Pamięć",
-            "System",
-            "Raporty",
-            "Dziennik",
-            "Konsola",
-            "O programie",
-        ):
+        def add_nav_button(container, label: str, command, indent: bool = False) -> ctk.CTkButton:
             inactive_bg = "#fff8c5" if self.skin == "black" else "transparent"
             inactive_hover = "#fde68a" if self.skin == "black" else self.colors["nav_hover"]
             button = ctk.CTkButton(
-                sidebar,
-                text=label,
-                command=lambda name=label: self.show_page(name),
+                container,
+                text=f"  {label}" if indent else label,
+                command=command,
                 anchor="w",
-                height=40,
+                height=36 if indent else 40,
                 corner_radius=8,
                 fg_color=inactive_bg,
                 hover_color=inactive_hover,
                 text_color=self.colors["sidebar_text"],
-                font=(FONT, 11, "bold" if label == "Dashboard" else "normal"),
+                font=(FONT, 10 if indent else 11, "bold" if label == "Dashboard" else "normal"),
             )
-            button.pack(fill=tk.X, padx=12, pady=3)
+            button.pack(fill=tk.X, padx=12 if not indent else 16, pady=2 if indent else 3)
             self.nav_buttons[label] = button
+            return button
+
+        add_nav_button(sidebar, "Dashboard", lambda: self.show_page("Dashboard"))
+        add_nav_button(sidebar, "Narzędzia", self._toggle_tools_menu).configure(text="Narzędzia ▾")
+        self.tools_submenu = ctk.CTkFrame(sidebar, fg_color="transparent")
+        self.tools_submenu.pack(fill=tk.X)
+        for category in QUICK_CATEGORIES:
+            add_nav_button(self.tools_submenu, category, lambda name=category: self.show_tool_category(name), indent=True)
+        for label in ("Raporty", "Konsola", "O programie"):
+            add_nav_button(sidebar, label, lambda name=label: self.show_page(name))
 
         ctk.CTkButton(
             sidebar,
@@ -210,8 +214,16 @@ class EvidLockLightApp(ctk.CTk):
 
     def show_page(self, page: str) -> None:
         self.current_page = page
+        page_category = {
+            "Nośniki": "Nośniki i raporty",
+            "Zabezpieczanie": "Dane i integralność",
+            "Network": "Sieć i pamięć",
+            "Pamięć": "Sieć i pamięć",
+            "System": "Windows i system",
+            "Dziennik": "Windows i system",
+        }.get(page)
         for name, button in self.nav_buttons.items():
-            active = name == page
+            active = name == page or (name == "Narzędzia" and (page == "Narzędzia" or page_category is not None)) or (name == (self.selected_tool_category if page == "Narzędzia" else page_category))
             inactive_bg = "#fff8c5" if self.skin == "black" else "transparent"
             inactive_hover = "#fde68a" if self.skin == "black" else self.colors["nav_hover"]
             button.configure(
@@ -229,10 +241,7 @@ class EvidLockLightApp(ctk.CTk):
             child.destroy()
         subtitles = {
             "Dashboard": "Centralny panel szybkich akcji i codziennych narzędzi.",
-            "Szybkie akcje": "Pełny pulpit roboczy: wybieraj, uruchamiaj i przesuwaj kafle narzędzi.",
-            "Nośniki": "WinAPI, raporty PDF/JSON, dane woluminów i nośników.",
-            "Zabezpieczanie": "SHA-256, manifesty, archiwizacja, kopia 1:1, porównanie i read-only.",
-            "Narzędzia": "Moduły robocze Light: system, network, pamięć, logi i read-only.",
+            "Narzędzia": "Wszystkie funkcje uporządkowane w tej samej kategorii co na Dashboardzie.",
             "Network": "Skaner TCP, TShark i punkt rozbudowy Network Analyzer.",
             "Pamięć": "Kontrola WinPmem i Volatility 3.",
             "System": "Rejestr, logi Windows, zrzut głównego okna.",
@@ -241,9 +250,26 @@ class EvidLockLightApp(ctk.CTk):
             "Konsola": "Wbudowane CLI. Wszystkie opcje programu są dostępne jako komendy.",
             "O programie": "Informacje, funkcje, dokumentacja techniczna i diagnostyka.",
         }
-        self.title_label.configure(text=page)
+        display_title = self.selected_tool_category if page == "Narzędzia" else page
+        self.title_label.configure(text=display_title)
         self.subtitle_label.configure(text=subtitles.get(page, ""))
         getattr(self, f"_page_{self._method_name(page)}")()
+
+    def _toggle_tools_menu(self) -> None:
+        if self.tools_submenu is None:
+            return
+        self.tools_menu_expanded = not self.tools_menu_expanded
+        if self.tools_menu_expanded:
+            self.tools_submenu.pack(fill=tk.X, after=self.nav_buttons["Narzędzia"])
+        else:
+            self.tools_submenu.pack_forget()
+        self.nav_buttons["Narzędzia"].configure(text=f"Narzędzia {'▾' if self.tools_menu_expanded else '▸'}")
+
+    def show_tool_category(self, category: str) -> None:
+        self.selected_tool_category = category if category in QUICK_CATEGORIES else QUICK_CATEGORIES[0]
+        if not self.tools_menu_expanded:
+            self._toggle_tools_menu()
+        self.show_page("Narzędzia")
 
     def _change_skin(self, label: str) -> None:
         """Zapisuje wybor i przebudowuje powloke bez restartu procesu."""
@@ -265,6 +291,8 @@ class EvidLockLightApp(ctk.CTk):
         self.media_dialog = None
         self.registry_dialog = None
         self.windows_logs_dialog = None
+        self.readonly_dialog = None
+        self.memory_manager_dialog = None
         for child in self.winfo_children():
             child.destroy()
         self.nav_buttons.clear()
@@ -428,8 +456,7 @@ class EvidLockLightApp(ctk.CTk):
             "archive": {"title": "Archiwizacja ZIP", "text": "Archiwum danych z paskiem postępu.", "category": "Dane i integralność", "color": self.colors["purple"], "command": self._archive},
             "hash": {"title": "SHA-256 pliku", "text": "Obliczenie skrótu wybranego pliku.", "category": "Dane i integralność", "color": self.colors["accent"], "command": self._hash_file},
             "manifest": {"title": "Manifest katalogu", "text": "Lista plików i sum SHA-256 w JSON.", "category": "Dane i integralność", "color": self.colors["accent"], "command": self._manifest},
-            "readonly_set": {"title": "Ustaw read-only", "text": "Nadaj atrybut tylko do odczytu.", "category": "Dane i integralność", "color": self.colors["green"], "command": lambda: self._readonly(True)},
-            "readonly_clear": {"title": "Usuń read-only", "text": "Zdejmij atrybut tylko do odczytu.", "category": "Dane i integralność", "color": self.colors["green"], "command": lambda: self._readonly(False)},
+            "readonly": {"title": "Ochrona read-only", "text": "Sprawdź, ustaw lub usuń atrybut tylko do odczytu.", "category": "Dane i integralność", "color": self.colors["green"], "command": self._open_readonly_dialog},
             "media": {"title": "Informacje o nośnikach", "text": "Okno dysków z ikonami, zajętością i raportem.", "category": "Nośniki i raporty", "color": self.colors["accent"], "command": self._open_media_dialog},
             "media_report": {"title": "Raport nośników", "text": "Raport PDF informacji o nośnikach.", "category": "Nośniki i raporty", "color": self.colors["purple"], "command": self._media_report},
             "reports": {"title": "Raporty", "text": "Otwórz centralny panel raportów.", "category": "Nośniki i raporty", "color": self.colors["red"], "command": lambda: self.show_page("Raporty")},
@@ -444,7 +471,7 @@ class EvidLockLightApp(ctk.CTk):
 
     def _default_quick_config(self) -> dict[str, list[str]]:
         return {
-            "Dane i integralność": ["copy", "compare", "hash", "archive"],
+            "Dane i integralność": ["copy", "compare", "hash", "archive", "readonly"],
             "Nośniki i raporty": ["media", "reports"],
             "Sieć i pamięć": ["network", "memory"],
             "Windows i system": ["windows_logs", "registry", "capture"],
@@ -464,6 +491,10 @@ class EvidLockLightApp(ctk.CTk):
         used: set[str] = set()
         for category in QUICK_CATEGORIES:
             values = saved.get(category, []) if isinstance(saved, dict) else []
+            if category == "Dane i integralność" and isinstance(values, list) and any(item in values for item in ("readonly_set", "readonly_clear")):
+                values = [item for item in values if item not in {"readonly_set", "readonly_clear"}]
+                if "readonly" not in values:
+                    values.append("readonly")
             for tool_id in values if isinstance(values, list) else []:
                 if tool_id in definitions and definitions[tool_id]["category"] == category and tool_id not in used:
                     result[category].append(tool_id)
@@ -494,23 +525,26 @@ class EvidLockLightApp(ctk.CTk):
     def _build_quick_workspace(self, parent, detached: bool = False) -> None:
         assert parent is not None
         parent.grid_columnconfigure(0, weight=1)
-        parent.grid_rowconfigure(2, weight=1)
+        parent.grid_rowconfigure(1, weight=1)
         self.drop_zone = DropZone(parent, self, self.colors, self.dropped_paths, large=True)
         self.drop_zone.grid(row=0, column=0, sticky="ew", pady=(0, 10))
 
-        toolbar = ctk.CTkFrame(parent, fg_color=self.colors["card"], border_width=1, border_color=self.colors["border"], corner_radius=8)
-        toolbar.grid(row=1, column=0, sticky="ew", pady=(0, 10))
+        workspace = ctk.CTkFrame(parent, fg_color=self.colors["card"], border_width=1, border_color=self.colors["border"], corner_radius=8)
+        workspace.grid(row=1, column=0, sticky="nsew")
+        workspace.grid_columnconfigure(0, weight=1)
+        workspace.grid_rowconfigure(1, weight=1)
+        toolbar = ctk.CTkFrame(workspace, fg_color="transparent")
+        toolbar.grid(row=0, column=0, sticky="ew", padx=12, pady=(8, 0))
         toolbar.grid_columnconfigure(0, weight=1)
-        ctk.CTkLabel(toolbar, text="Szybkie akcje", text_color=self.colors["text"], font=(FONT, 15, "bold"), anchor="w").grid(row=0, column=0, sticky="ew", padx=14, pady=(10, 2))
-        ctk.CTkLabel(toolbar, text="Bieżące narzędzia są uporządkowane tematycznie. Konfigurację otwiera koło zębate.", text_color=self.colors["muted"], font=(FONT, 9), anchor="w").grid(row=1, column=0, sticky="ew", padx=14, pady=(0, 10))
-        self.quick_count_label = ctk.CTkLabel(toolbar, text="", text_color=self.colors["accent"], font=(FONT, 10, "bold"))
-        self.quick_count_label.grid(row=0, column=1, rowspan=2, padx=8)
-        gear = ctk.CTkButton(toolbar, text="⚙", width=38, height=34, command=self._open_quick_settings, fg_color=self.colors["soft"], hover_color=self.colors["border"], text_color=self.colors["text"], border_width=1, border_color=self.colors["border"], font=(FONT, 18))
-        gear.grid(row=0, column=2, rowspan=2, padx=(0, 10))
+        ctk.CTkLabel(toolbar, text="Narzędzia podręczne", text_color=self.colors["text"], font=(FONT, 14, "bold"), anchor="w").grid(row=0, column=0, sticky="ew")
+        self.quick_count_label = ctk.CTkLabel(toolbar, text="", text_color=self.colors["muted"], font=(FONT, 9, "bold"))
+        self.quick_count_label.grid(row=0, column=1, padx=8)
+        gear = ctk.CTkButton(toolbar, text="⚙", width=34, height=30, command=self._open_quick_settings, fg_color=self.colors["soft"], hover_color=self.colors["border"], text_color=self.colors["text"], border_width=1, border_color=self.colors["border"], font=(FONT, 16))
+        gear.grid(row=0, column=2)
         self._attach_tooltip(gear, "Konfiguruj Szybkie akcje")
 
-        tabs = ctk.CTkTabview(parent, fg_color=self.colors["card"], segmented_button_fg_color=self.colors["soft"], segmented_button_selected_color=self.colors["accent"], segmented_button_selected_hover_color=self.colors["accent_hover"], border_width=1, border_color=self.colors["border"], corner_radius=8)
-        tabs.grid(row=2, column=0, sticky="nsew")
+        tabs = ctk.CTkTabview(workspace, fg_color="transparent", segmented_button_fg_color=self.colors["soft"], segmented_button_selected_color=self.colors["accent"], segmented_button_selected_hover_color=self.colors["accent_hover"], border_width=0, corner_radius=0)
+        tabs.grid(row=1, column=0, sticky="nsew", padx=6, pady=(0, 6))
         self.quick_tab_frames = {}
         for category in QUICK_CATEGORIES:
             tab = tabs.add(category)
@@ -744,26 +778,35 @@ class EvidLockLightApp(ctk.CTk):
         self.content.grid_rowconfigure(0, weight=1)
         self._build_quick_panel(self.content)
 
-    def _build_tools_panel(self, parent, detached: bool = False) -> None:
+    def _build_tools_panel(self, parent, detached: bool = False, category: str | None = None) -> None:
         parent.grid_columnconfigure(0, weight=1)
         frame = ctk.CTkScrollableFrame(parent, fg_color="transparent")
         frame.grid(row=0, column=0, sticky="nsew")
+        frame.grid_columnconfigure((0, 1), weight=1, uniform="tools")
         parent.grid_rowconfigure(0, weight=1)
         definitions = self._tool_definitions()
-        for category in QUICK_CATEGORIES:
-            ctk.CTkLabel(frame, text=category, text_color=self.colors["text"], font=(FONT, 15, "bold"), anchor="w").pack(fill=tk.X, pady=(12, 8))
-            for definition in definitions.values():
-                if definition["category"] == category:
-                    self._action_card(frame, definition["title"], definition["text"], definition["command"], definition["color"])
+        selected = category or self.selected_tool_category
+        items = [definition for definition in definitions.values() if definition["category"] == selected]
+        for index, definition in enumerate(items):
+            tile = ctk.CTkFrame(frame, height=90, fg_color=self.colors["card"], border_width=1, border_color=self.colors["border"], corner_radius=7)
+            tile.grid(row=index // 2, column=index % 2, sticky="ew", padx=5, pady=5)
+            tile.pack_propagate(False)
+            ctk.CTkFrame(tile, width=4, fg_color=definition["color"], corner_radius=2).pack(side=tk.LEFT, fill=tk.Y, pady=5)
+            ctk.CTkButton(tile, text="Otwórz", width=76, height=30, command=definition["command"], fg_color=definition["color"]).pack(side=tk.RIGHT, padx=9)
+            body = ctk.CTkFrame(tile, fg_color="transparent")
+            body.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10, pady=8)
+            ctk.CTkLabel(body, text=definition["title"], text_color=self.colors["text"], font=(FONT, 12, "bold"), anchor="w").pack(fill=tk.X)
+            ctk.CTkLabel(body, text=definition["text"], text_color=self.colors["muted"], font=(FONT, 9), anchor="w", justify="left", wraplength=290).pack(fill=tk.X, pady=(2, 0))
 
     def _page_tools(self) -> None:
         assert self.content is not None
         self.content.grid_columnconfigure(0, weight=1)
         self.content.grid_rowconfigure(1, weight=1)
-        self._detach_button(self.content, "Narzędzia", self._build_tools_panel, use_grid=True)
+        category = self.selected_tool_category
+        self._detach_button(self.content, category, lambda parent, detached=False: self._build_tools_panel(parent, detached, category), use_grid=True)
         body = ctk.CTkFrame(self.content, fg_color="transparent")
         body.grid(row=1, column=0, sticky="nsew")
-        self._build_tools_panel(body)
+        self._build_tools_panel(body, category=category)
 
     def _page_media(self) -> None:
         actions = self._layout_with_output()
@@ -788,11 +831,19 @@ class EvidLockLightApp(ctk.CTk):
         self._action_card(actions, "Archiwizacja ZIP", "Utwórz archiwum ze stanem postępu.", self._archive)
         self._action_card(actions, "Porównaj A/B", "Porównaj pliki lub katalogi bez wykonywania kopii.", self._compare)
         self._action_card(actions, "Kopia 1:1", "Skopiuj katalog lub plik 1:1 z zachowaniem metadanych.", self._copy_1to1)
-        self._action_card(actions, "Ustaw tylko do odczytu", "Ustaw atrybut read-only rekurencyjnie.", lambda: self._readonly(True))
-        self._action_card(actions, "Usuń tylko do odczytu", "Zdejmij atrybut read-only rekurencyjnie.", lambda: self._readonly(False))
+        self._action_card(actions, "Ochrona read-only", "Sprawdź status, ustaw albo usuń atrybut w jednym panelu.", self._open_readonly_dialog)
 
     def _page_network(self) -> None:
         actions = self._layout_with_output()
+        status = network.tshark_status()
+        dependency = ctk.CTkFrame(actions, fg_color=self.colors["card"], border_width=1, border_color=self.colors["border"], corner_radius=8)
+        dependency.pack(fill=tk.X, pady=(0, 10))
+        dependency.grid_columnconfigure(0, weight=1)
+        status_text = f"TShark GOTOWY\n{status['path']}" if status["available"] else "TShark BRAK\nNetwork Analyzer wymaga komponentu TShark z pakietu Wireshark."
+        ctk.CTkLabel(dependency, text=status_text, text_color=self.colors["green"] if status["available"] else self.colors["red"], font=(FONT, 10, "bold"), anchor="w", justify="left", wraplength=520).grid(row=0, column=0, columnspan=3, sticky="ew", padx=12, pady=(10, 4))
+        ctk.CTkButton(dependency, text="Odśwież status", width=115, command=lambda: self.show_page("Network")).grid(row=1, column=1, padx=4, pady=(0, 10))
+        install = ctk.CTkButton(dependency, text="Instaluj Wireshark/TShark", width=175, command=self._install_tshark, state="disabled" if status["available"] else "normal")
+        install.grid(row=1, column=2, padx=(4, 10), pady=(0, 10))
         form = ctk.CTkFrame(actions, fg_color=self.colors["card"], border_width=1, border_color=self.colors["border"], corner_radius=8)
         form.pack(fill=tk.X, pady=(0, 10))
         host = ctk.CTkEntry(form, placeholder_text="Host/IP", width=180)
@@ -801,11 +852,22 @@ class EvidLockLightApp(ctk.CTk):
         ports.insert(0, "22,80,443,445,3389")
         ports.grid(row=0, column=1, padx=(0, 14), pady=(14, 6), sticky="ew")
         ctk.CTkButton(form, text="Skanuj TCP", command=lambda: self._run(lambda: network.scan_tcp(host.get(), network.parse_ports(ports.get())))).grid(row=1, column=0, columnspan=2, sticky="ew", padx=14, pady=(0, 14))
-        self._action_card(actions, "Status TShark", "Sprawdź dostępność TShark dla Network Analyzer.", lambda: self._run(network.tshark_status), self.colors["teal"])
+        self._action_card(actions, "Status techniczny TShark", "Pokaż pełną informację diagnostyczną komponentu.", lambda: self._run(network.tshark_status), self.colors["teal"])
 
     def _page_memory(self) -> None:
         actions = self._layout_with_output()
-        self._action_card(actions, "WinPmem / Volatility 3", "Sprawdź obecność komponentów pamięci RAM.", lambda: self._run(memory.dependency_status))
+        status = memory.dependency_status()
+        dependency = ctk.CTkFrame(actions, fg_color=self.colors["card"], border_width=1, border_color=self.colors["border"], corner_radius=8)
+        dependency.pack(fill=tk.X, pady=(0, 10))
+        dependency.grid_columnconfigure(0, weight=1)
+        winpmem_text = f"WinPmem GOTOWY: {status['winpmem_path']}" if status["winpmem_present"] else "WinPmem BRAK - pobierz oficjalny plik i wskaż go w managerze."
+        volatility_text = f"Volatility 3 GOTOWY: {status['volatility_path']}" if status["volatility_present"] else "Volatility 3 BRAK - użyj przycisku instalacji."
+        ctk.CTkLabel(dependency, text=f"{winpmem_text}\n{volatility_text}", text_color=self.colors["green"] if status["winpmem_present"] and status["volatility_present"] else self.colors["red"], font=(FONT, 10, "bold"), anchor="w", justify="left", wraplength=520).grid(row=0, column=0, columnspan=4, sticky="ew", padx=12, pady=(10, 4))
+        ctk.CTkButton(dependency, text="Odśwież", width=85, command=lambda: self.show_page("Pamięć")).grid(row=1, column=1, padx=4, pady=(0, 10))
+        ctk.CTkButton(dependency, text="Instaluj Volatility 3", width=145, command=self._install_volatility, state="disabled" if status["volatility_present"] else "normal").grid(row=1, column=2, padx=4, pady=(0, 10))
+        ctk.CTkButton(dependency, text="Pobierz WinPmem", width=125, command=lambda: self._run(memory.open_winpmem_download), state="disabled" if status["winpmem_present"] else "normal").grid(row=1, column=3, padx=(4, 10), pady=(0, 10))
+        self._action_card(actions, "Manager pamięci", "Zrzuty A/B, SHA-256, porównanie, zrzut WinPmem i pluginy Volatility 3.", self._open_memory_manager, self.colors["purple"])
+        self._action_card(actions, "Status techniczny", "Pokaż pełne ścieżki i stan komponentów pamięci.", lambda: self._run(memory.dependency_status))
 
     def _page_system(self) -> None:
         actions = self._layout_with_output()
@@ -1176,6 +1238,36 @@ class EvidLockLightApp(ctk.CTk):
         self.windows_logs_dialog = WindowsLogsDialog(self, self.colors, on_result=lambda result: self._write(result, "Eksport logów Windows"))
         self.detached_windows.append(self.windows_logs_dialog)
 
+    def _open_readonly_dialog(self) -> None:
+        if self.readonly_dialog is not None and self.readonly_dialog.winfo_exists():
+            self.readonly_dialog.lift()
+            self.readonly_dialog.focus_force()
+            return
+        initial = self.dropped_paths[0] if self.dropped_paths else ""
+        self.readonly_dialog = ReadOnlyDialog(self, self.colors, initial_path=initial, on_result=lambda result: self._write(result, "Ochrona read-only"))
+        self.detached_windows.append(self.readonly_dialog)
+
+    def _open_memory_manager(self) -> None:
+        if self.memory_manager_dialog is not None and self.memory_manager_dialog.winfo_exists():
+            self.memory_manager_dialog.refresh_status()
+            self.memory_manager_dialog.lift()
+            self.memory_manager_dialog.focus_force()
+            return
+        self.memory_manager_dialog = MemoryManagerDialog(self, self.colors, on_result=lambda result: self._write(result, "Manager pamięci"))
+        if self.dropped_paths:
+            self.memory_manager_dialog.file_a.set(self.dropped_paths[0])
+        if len(self.dropped_paths) > 1:
+            self.memory_manager_dialog.file_b.set(self.dropped_paths[1])
+        self.detached_windows.append(self.memory_manager_dialog)
+
+    def _install_tshark(self) -> None:
+        if messagebox.askyesno("Instalacja TShark", "Zostanie uruchomiona instalacja oficjalnego pakietu Wireshark przez winget. Kontynuować?", parent=self):
+            self._run(network.install_tshark)
+
+    def _install_volatility(self) -> None:
+        if messagebox.askyesno("Instalacja Volatility 3", "Zostanie uruchomione polecenie pip install --user volatility3. Kontynuować?", parent=self):
+            self._run(memory.install_volatility)
+
     def _simple_progress_worker(self, progress, func, start_text: str, work_text: str, result_key: str | None):
         progress(5, start_text)
         progress(25, work_text)
@@ -1185,19 +1277,20 @@ class EvidLockLightApp(ctk.CTk):
             return {result_key: str(result)}
         return result
 
-    def _readonly(self, enable: bool) -> None:
-        path = filedialog.askdirectory(parent=self) or filedialog.askopenfilename(parent=self)
-        if path:
-            self._run(lambda: readonly.apply_readonly(path) if enable else readonly.clear_readonly(path))
-
     def _admin(self) -> None:
         if winapi.is_admin():
             messagebox.showinfo(APP_NAME, "Aplikacja działa już jako administrator.")
             return
         try:
+            from .single_instance import release_for_relaunch
+
+            release_for_relaunch()
             winapi.relaunch_as_admin()
             self.destroy()
         except Exception as exc:
+            from .single_instance import SingleInstance
+
+            SingleInstance()
             messagebox.showerror(APP_NAME, str(exc))
 
     def _diagnostics(self) -> dict:

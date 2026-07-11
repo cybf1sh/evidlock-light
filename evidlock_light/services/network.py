@@ -9,6 +9,7 @@ from __future__ import annotations
 import shutil
 import socket
 import subprocess
+import os
 from dataclasses import dataclass, asdict
 from pathlib import Path
 
@@ -54,8 +55,25 @@ def parse_ports(text: str) -> list[int]:
 
 
 def tshark_status() -> dict:
-    path = shutil.which("tshark")
-    return {"available": bool(path), "path": path or ""}
+    candidates = [
+        shutil.which("tshark"),
+        os.path.join(os.environ.get("ProgramFiles", "C:/Program Files"), "Wireshark", "tshark.exe"),
+        os.path.join(os.environ.get("ProgramFiles(x86)", "C:/Program Files (x86)"), "Wireshark", "tshark.exe"),
+    ]
+    path = next((str(candidate) for candidate in candidates if candidate and Path(candidate).is_file()), "")
+    return {"available": bool(path), "path": path, "install_available": bool(shutil.which("winget"))}
+
+
+def install_tshark() -> dict:
+    """Uruchamia oficjalny instalator Wireshark zawierający TShark."""
+
+    winget = shutil.which("winget")
+    if not winget:
+        raise RuntimeError("Brak winget. Zainstaluj Wireshark ręcznie z wireshark.org/download.html.")
+    command = [winget, "install", "--id", "WiresharkFoundation.Wireshark", "-e", "--accept-source-agreements", "--accept-package-agreements"]
+    flags = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
+    subprocess.Popen(command, creationflags=flags)
+    return {"started": True, "command": command, "message": "Uruchomiono instalację Wireshark. Po zakończeniu kliknij Odśwież status."}
 
 
 def analyze_pcap_basic(pcap: str | Path, output: str | Path | None = None) -> dict:

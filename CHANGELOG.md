@@ -2,6 +2,14 @@
 
 ## 2026-07-12 - samodzielne repo i pełne moduły Windows
 
+- Uporządkowano lewe menu: Dashboard, rozwijane Narzędzia w czterech kategoriach, Raporty, Konsola i O programie.
+- Usunięto z menu osobną pozycję Szybkie akcje oraz oddzielne pozycje modułów; kategorie odpowiadają zakładkom Dashboardu.
+- Zintegrowano nagłówek narzędzi podręcznych z panelem zakładek i poprawiono wykorzystanie wysokości Dashboardu.
+- Widoki Narzędzi korzystają z małych, dwukolumnowych kafli z wyraźnymi tytułami.
+- Dodano wspólny panel read-only: sprawdzenie statusu, ustawienie i usunięcie atrybutu.
+- Dodano manager pamięci: zrzuty A/B, SHA-256, porównanie, WinPmem i pluginy Volatility 3.
+- Dodano statusy GOTOWY/BRAK oraz instalację Volatility 3, Wireshark/TShark i pobieranie lub wskazanie WinPmem.
+- Dodano mutex Windows blokujący kolejne instancje i przywracający istniejące okno.
 - Dodano `Przeglądaj PDF` do bieżącego raportu, nośników, rejestru, logów oraz kopii/porównania.
 - Dla wyniku bez własnego PDF przycisk automatycznie generuje raport i otwiera go w domyślnej przeglądarce systemowej.
 - Zastąpiono przerysowane logo dokładnym algorytmem EvidLockV2: przezroczyste RGBA, cienki kontur i antyaliasing PIL.
