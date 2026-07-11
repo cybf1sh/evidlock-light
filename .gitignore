@@ -1,0 +1,11 @@
+build/
+.venv/
+dist/
+releases/
+logi/
+raporty/
+eksport/
+__pycache__/
+*.pyc
+*.exe
+*.exe.sha256

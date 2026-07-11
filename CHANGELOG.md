@@ -1,0 +1,65 @@
+# EvidLock Light - changelog
+
+## 2026-07-12 - samodzielne repo i pełne moduły Windows
+
+- Przeniesiono EvidLock Light do całkowicie osobnego repozytorium z własnym `.venv`, `requirements.txt`, buildem i backupem.
+- Dodano Drag and Drop plików i katalogów przez `tkinterdnd2`.
+- Powtórne dodanie tego samego pliku lub katalogu pokazuje komunikat i nie tworzy duplikatu.
+- Przeciągnięte elementy zasilają kopiowanie, porównanie, SHA-256, manifest i archiwizację.
+- Dodano pełne okno eksportu rejestru: hive, gałęzie danych, REG/CSV/XLSX/TXT/PDF/JSON, SHA-256 i read-only.
+- Dodano pełne okno logów Windows: tryb szybki/pełny, zakres czasu, limit, sortowanie, wybór dzienników, EVTX i raporty.
+- Dodano pełne okno informacji o nośnikach z lekkimi ikonami dysków odpowiadającymi wariantom EvidLockV2.
+- Build dołącza runtime `tkinterdnd2` i działa bez zależności od repo EvidLock.
+
+## 2026-07-12 - centralne Szybkie akcje, postęp i narzędzie kopii
+
+- `Szybkie akcje` są pełnym centralnym panelem aplikacji, a nie małym panelem bocznym.
+- Dodano tematyczną bibliotekę narzędzi: dane i integralność, nośniki i raporty, network i pamięć oraz system Windows.
+- Kafle można dodawać, usuwać, przeciągać i przesuwać przyciskami; układ jest zapisywany w profilu użytkownika.
+- Dodano osobne okno `Kopia 1:1 i porównanie A/B` z wyborem pliku lub katalogu, paskiem postępu i logiem.
+- Kopia 1:1 automatycznie wykonuje weryfikację SHA-256 oraz zapisuje raport PDF, TXT i JSON.
+- Paski postępu dodano również do SHA-256, manifestu, archiwizacji, raportu nośników, rejestru i logów Windows.
+- Narzędzia w widoku `Narzędzia` są uporządkowane w tych samych kategoriach co biblioteka Szybkich akcji.
+- Build zapisuje aktualny oryginał, backup poprzedniego EXE i kopię wydania z datą jak EvidLockV2.
+
+## 2026-07-11 - trzy skórki i kontrolowany build
+
+- Dodano trzy skórki interfejsu Light: `Green`, `System` i `Black`.
+- Dodano wybór skórki w górnej belce, zgodnie z układem EvidLockV2.
+- Wybrana skórka jest zapisywana w profilu użytkownika i przywracana przy starcie.
+- Skórka `System` rozpoznaje jasny lub ciemny tryb aplikacji Windows.
+- Diagnostyka pokazuje aktywną skórkę.
+- Skrypt build sprawdza zależności, kod zakończenia PyInstallera i obecność EXE.
+- Naprawiono otwieranie stron z odpinanymi panelami po zmianie układu menu.
+
+## 2026-07-11 - start wersji Light
+
+- Utworzono osobną gałąź `evidlock-light`.
+- Dodano katalog `evidlock_light`.
+- Przygotowano założenia wersji Light: bez numeru sprawy, bez OCR, bez wielojęzyczności.
+- Zaplanowano GUI CTk i CLI jako równorzędne interfejsy do tych samych modułów usługowych.
+- Dodano modułowy podział na nośniki, hash, kopię/porównanie, archiwizację, read-only, network, pamięć, rejestr, logi, raporty, diagnostykę i dokumentację tekstową.
+
+## 2026-07-11 - interfejs jak EvidLockV2 i konsola w aplikacji
+
+- Przebudowano GUI Light z prostych zakładek na układ z bocznym menu, nagłówkiem, kaflami akcji i panelem wyników.
+- Dodano stronę `Konsola`, która uruchamia wewnętrzny silnik CLI bez osobnego programu użytkowego.
+- Usunięto osobny build i launcher CLI; konsola jest dostępna z poziomu GUI.
+- Poprawiono raport PDF nośników: polskie znaki, font Unicode z Windows i czytelne formatowanie rozmiarów.
+- Dodano lokalny `.gitignore` dla katalogów roboczych Light: `build`, `dist`, `logi`, `raporty`, `eksport` i cache Pythona.
+
+## 2026-07-11 - O programie jak w EvidLockV2
+
+- Zastąpiono osobne pozycje `Dokumentacja` i `Diagnostyka` jedną sekcją `O programie`.
+- `O programie` ma zakładki: `O programie`, `Funkcje`, `Dokumentacja techniczna` i `Diagnostyka`.
+- Dokumentacja techniczna wróciła do `O programie` i ma wyszukiwarkę.
+- Diagnostyka wróciła do `O programie` i pokazuje m.in. tryb administratora, liczbę nośników, WinPmem/Volatility 3 oraz TShark.
+
+## 2026-07-11 - odpinane panele i dziennik
+
+- Dodano panele `Szybkie akcje`, `Narzędzia`, `Raporty` i `Dziennik`.
+- Panele można odpinać do osobnych okien roboczych jak w EvidLockV2.
+- Dodano dziennik operacji Light z zapisem JSONL oraz eksportem TXT/JSON.
+- `System` i `Raporty` mają eksport dziennika Light.
+- Eksport logów Windows zapisuje teraz EVTX oraz tekstowy podgląd TXT dla kanałów `System`, `Application` i `Security`.
+- Wbudowana konsola zapisuje wykonane komendy do dziennika.

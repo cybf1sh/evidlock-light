@@ -1,0 +1,28 @@
+EvidLock Light - dokumentacja techniczna
+
+1. Cel
+EvidLock Light jest lżejszym narzędziem do codziennej pracy technicznej. Nie prowadzi spraw i nie wymaga numeru sprawy.
+
+2. Repozytorium i zakres
+EvidLock Light ma osobne repozytorium, własne środowisko .venv, requirements.txt, build i backup. Brak numeru sprawy, OCR oraz wielojęzyczności.
+
+3. Zostaje
+Nośniki WinAPI, raporty PDF/JSON, SHA-256, archiwizacja, kopia 1:1, porównanie, read-only, rejestr Windows, logi Windows, memory manager, network, diagnostyka i tryb administratora.
+
+4. Network
+Moduł network zawiera skaner portów TCP i kontrolę TShark. Analizator PCAP będzie rozwijany jako osobny moduł usługowy.
+
+5. Pamięć
+Moduł pamięci kontroluje obecność WinPmem i Volatility 3 w katalogu tools/memory oraz udostępnia punkt uruchomienia pluginów Volatility.
+
+6. Drag and Drop
+Strefa centralna przyjmuje pliki i katalogi przez tkinterdnd2. Ścieżki są normalizowane. Powtórne dodanie tego samego elementu pokazuje komunikat i nie tworzy duplikatu. Przeciągnięte elementy mogą wypełniać źródło kopii, porównania, SHA-256, manifestu i archiwizacji.
+
+7. Eksport rejestru
+Osobne okno pozwala wybrać hive SYSTEM, SOFTWARE, SAM, SECURITY i NTUSER oraz fizyczne gałęzie HKLM i HKU. Powstają pliki HIVE/REG i raporty CSV/XLSX/TXT/PDF/JSON wraz z SHA-256 i atrybutem read-only.
+
+8. Logi Windows
+Osobne okno udostępnia tryb szybki i pełny, zakres czasu, własne daty, limit, sortowanie i wybór Application/Security/Setup/System. Tryb pełny zapisuje EVTX. Oba tryby generują raporty wieloformatowe, SHA-256 i dziennik postępu.
+
+9. Nośniki
+Okno nośników korzysta z WinAPI i pokazuje ikony dysków zgodne wizualnie z EvidLockV2: lokalny, USB, sieciowy, optyczny i RAM. Dostępny jest wybór wielu nośników, podgląd szczegółów oraz zbiorczy PDF.

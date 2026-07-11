@@ -1,0 +1,1 @@
+"""Moduły usługowe EvidLock Light."""
