@@ -26,6 +26,7 @@ from .ui.drop_zone import DropZone
 from .ui.media_dialog import MediaDialog
 from .ui.logo import EvidLockLogo
 from .ui.progress import ProgressDialog
+from .ui.report_window import ReportWindow
 from .ui.registry_dialog import RegistryExportDialog
 from .ui.windows_logs_dialog import WindowsLogsDialog
 
@@ -83,6 +84,12 @@ class EvidLockLightApp(ctk.CTk):
         self.quick_editor_frames: dict[str, tuple[ctk.CTkScrollableFrame, ctk.CTkScrollableFrame]] = {}
         self.quick_editor: ctk.CTkToplevel | None = None
         self.quick_editor_count: ctk.CTkLabel | None = None
+        self.report_window: ReportWindow | None = None
+        self.media_dialog: MediaDialog | None = None
+        self.registry_dialog: RegistryExportDialog | None = None
+        self.windows_logs_dialog: WindowsLogsDialog | None = None
+        self.last_report_title = "Bieżący raport"
+        self.last_report_data: object = {"status": "Brak wyników do wyświetlenia."}
         self.quick_drag_category: str | None = None
         self.dropped_paths: list[str] = []
         self.drop_zone: DropZone | None = None
@@ -254,6 +261,10 @@ class EvidLockLightApp(ctk.CTk):
             if window.winfo_exists():
                 window.destroy()
         self.detached_windows.clear()
+        self.report_window = None
+        self.media_dialog = None
+        self.registry_dialog = None
+        self.windows_logs_dialog = None
         for child in self.winfo_children():
             child.destroy()
         self.nav_buttons.clear()
@@ -291,7 +302,7 @@ class EvidLockLightApp(ctk.CTk):
         ctk.CTkLabel(result, text="Wynik operacji", text_color=self.colors["text"], font=(FONT, 13, "bold"), anchor="w").grid(row=0, column=0, sticky="ew", padx=14, pady=(12, 6))
         self.output = ctk.CTkTextbox(result, font=(FONT_MONO, 10), wrap="word", fg_color=self.colors["soft"])
         self.output.grid(row=1, column=0, sticky="nsew", padx=12, pady=(0, 12))
-        self._write({"status": "Gotowe"})
+        self._write({"status": "Gotowe"}, capture_report=False)
         return actions
 
     def _action_card(self, parent, title: str, text: str, command, color: str | None = None) -> None:
@@ -338,7 +349,18 @@ class EvidLockLightApp(ctk.CTk):
         builder(body, detached=True)
         journal.log_event("INFO", "UI", f"Odepnieto panel: {title}")
 
-    def _write(self, data) -> None:
+    def _write(self, data, title: str | None = None, capture_report: bool = True) -> None:
+        if capture_report:
+            self.last_report_title = title or self.current_page
+            self.last_report_data = data
+            if self.report_window is not None:
+                try:
+                    if self.report_window.winfo_exists():
+                        self.report_window.update_report(self.last_report_title, data)
+                    else:
+                        self.report_window = None
+                except Exception:
+                    self.report_window = None
         if self.output is None or not self.output.winfo_exists():
             return
         self.output.configure(state="normal")
@@ -346,6 +368,27 @@ class EvidLockLightApp(ctk.CTk):
         text = data if isinstance(data, str) else json.dumps(data, ensure_ascii=False, indent=2)
         self.output.insert("1.0", text)
         self.output.configure(state="disabled")
+
+    def show_report(self, title: str | None = None, data: object | None = None) -> None:
+        """Otwiera albo odświeża jedno wspólne okno bieżącego raportu."""
+
+        if title is not None:
+            self.last_report_title = title
+        if data is not None:
+            self.last_report_data = data
+        if self.report_window is not None:
+            try:
+                if self.report_window.winfo_exists():
+                    self.report_window.update_report(self.last_report_title, self.last_report_data)
+                    self.report_window.deiconify()
+                    self.report_window.lift()
+                    self.report_window.focus_force()
+                    return
+            except Exception:
+                pass
+        self.report_window = ReportWindow(self, self.colors, on_close=lambda: setattr(self, "report_window", None))
+        self.detached_windows.append(self.report_window)
+        self.report_window.update_report(self.last_report_title, self.last_report_data)
 
     def _run(self, func) -> None:
         try:
@@ -730,8 +773,13 @@ class EvidLockLightApp(ctk.CTk):
         self._action_card(actions, "Eksport JSON", "Zapisz surowe dane nośników do pliku JSON.", lambda: self._run(lambda: {"json": str(media.export_media_json())}))
 
     def _open_media_dialog(self) -> None:
-        dialog = MediaDialog(self, self.colors, on_result=self._write)
-        self.detached_windows.append(dialog)
+        if self.media_dialog is not None and self.media_dialog.winfo_exists():
+            self.media_dialog.refresh()
+            self.media_dialog.lift()
+            self.media_dialog.focus_force()
+            return
+        self.media_dialog = MediaDialog(self, self.colors, on_result=lambda result: self._write(result, "Raport nośników"))
+        self.detached_windows.append(self.media_dialog)
 
     def _page_security(self) -> None:
         actions = self._layout_with_output()
@@ -772,6 +820,7 @@ class EvidLockLightApp(ctk.CTk):
         frame = ctk.CTkScrollableFrame(parent, fg_color="transparent")
         frame.grid(row=0, column=0, sticky="nsew")
         parent.grid_rowconfigure(0, weight=1)
+        self._action_card(frame, "Bieżący raport", "Jedno odświeżane okno wyników z zapisem bieżących danych do PDF.", self.show_report, self.colors["accent"])
         self._action_card(frame, "Raport nośników PDF", "Raport generowany przez moduł raportów Light.", self._media_report)
         self._action_card(frame, "Dane nośników JSON", "Eksport danych WinAPI w formacie JSON.", lambda: self._run(lambda: {"json": str(media.export_media_json())}))
         self._action_card(frame, "Eksport dziennika TXT/JSON", "Raport z dziennika operacji programu.", lambda: self._run(journal.export_journal))
@@ -1090,7 +1139,7 @@ class EvidLockLightApp(ctk.CTk):
         self.detached_windows.append(dialog)
 
     def _copy_result(self, mode: str, result: dict) -> None:
-        self._write(result)
+        self._write(result, "Raport kopii 1:1" if mode == "copy" else "Raport porównania A/B")
         journal.log_event("OK", "Kopia" if mode == "copy" else "Porównanie", "Operacja zakończona", {"ok": result.get("ok")})
 
     def _media_report(self) -> None:
@@ -1106,8 +1155,12 @@ class EvidLockLightApp(ctk.CTk):
         )
 
     def _open_registry_dialog(self) -> None:
-        dialog = RegistryExportDialog(self, self.colors, on_result=self._write)
-        self.detached_windows.append(dialog)
+        if self.registry_dialog is not None and self.registry_dialog.winfo_exists():
+            self.registry_dialog.lift()
+            self.registry_dialog.focus_force()
+            return
+        self.registry_dialog = RegistryExportDialog(self, self.colors, on_result=lambda result: self._write(result, "Eksport rejestru Windows"))
+        self.detached_windows.append(self.registry_dialog)
 
     def _windows_logs_export(self) -> None:
         self._run_progress(
@@ -1116,8 +1169,12 @@ class EvidLockLightApp(ctk.CTk):
         )
 
     def _open_windows_logs_dialog(self) -> None:
-        dialog = WindowsLogsDialog(self, self.colors, on_result=self._write)
-        self.detached_windows.append(dialog)
+        if self.windows_logs_dialog is not None and self.windows_logs_dialog.winfo_exists():
+            self.windows_logs_dialog.lift()
+            self.windows_logs_dialog.focus_force()
+            return
+        self.windows_logs_dialog = WindowsLogsDialog(self, self.colors, on_result=lambda result: self._write(result, "Eksport logów Windows"))
+        self.detached_windows.append(self.windows_logs_dialog)
 
     def _simple_progress_worker(self, progress, func, start_text: str, work_text: str, result_key: str | None):
         progress(5, start_text)

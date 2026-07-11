@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import os
 import threading
 import tkinter as tk
+from pathlib import Path
 
 import customtkinter as ctk
+from PIL import Image
 
 from ..services import media
 
@@ -16,6 +17,8 @@ class MediaDialog(ctk.CTkToplevel):
         super().__init__(parent)
         self.colors = colors
         self.on_result = on_result
+        self.report_host = parent
+        self.icon_images: list[ctk.CTkImage] = []
         self.items = media.list_media()
         self.selected: dict[str, tk.BooleanVar] = {}
         self.title("Informacje o nośnikach")
@@ -34,7 +37,7 @@ class MediaDialog(ctk.CTkToplevel):
         toolbar.grid_columnconfigure(0, weight=1)
         self.status = ctk.CTkLabel(toolbar, text="", text_color=colors["text"], font=("Segoe UI", 10, "bold"), anchor="w")
         self.status.grid(row=0, column=0, sticky="ew", padx=12, pady=10)
-        ctk.CTkButton(toolbar, text="Odśwież", width=90, command=self._reload).grid(row=0, column=1, padx=4)
+        ctk.CTkButton(toolbar, text="Odśwież", width=90, command=self.refresh).grid(row=0, column=1, padx=4)
         ctk.CTkButton(toolbar, text="Zaznacz wszystko", width=140, command=self._toggle_all, fg_color=colors["soft"], text_color=colors["text"], border_width=1, border_color=colors["border"]).grid(row=0, column=2, padx=(4, 10))
 
         self.list_frame = ctk.CTkScrollableFrame(self, fg_color=colors["card"], border_width=1, border_color=colors["border"], corner_radius=8)
@@ -65,6 +68,17 @@ class MediaDialog(ctk.CTkToplevel):
 
     def _draw_icon(self, parent, variant: str, color: str) -> None:
         bg = self.colors["soft"]
+        asset_name = "disk" if variant == "memory" else variant
+        asset_path = Path(__file__).resolve().parents[1] / "assets" / "media_icons" / f"{asset_name}.png"
+        try:
+            image = Image.open(asset_path).convert("RGBA")
+            ctk_image = ctk.CTkImage(light_image=image, dark_image=image, size=(58, 58))
+            self.icon_images.append(ctk_image)
+            label = ctk.CTkLabel(parent, text="", image=ctk_image, fg_color="transparent")
+            label.place(relx=.5, rely=.5, anchor="center")
+            return
+        except (OSError, ValueError):
+            pass
         canvas = tk.Canvas(parent, width=58, height=58, bg=bg, highlightthickness=0, bd=0)
         canvas.place(relx=.5, rely=.5, anchor="center")
         if variant == "usb":
@@ -94,6 +108,7 @@ class MediaDialog(ctk.CTkToplevel):
 
     def _render(self) -> None:
         for child in self.list_frame.winfo_children(): child.destroy()
+        self.icon_images.clear()
         previous = {key: value.get() for key, value in self.selected.items()}
         self.selected = {}
         for item in self.items:
@@ -125,7 +140,7 @@ class MediaDialog(ctk.CTkToplevel):
         for variable in self.selected.values(): variable.set(value)
         self._update_status()
 
-    def _reload(self) -> None:
+    def refresh(self) -> None:
         self.items=media.list_media(); self._render()
 
     def _selected_letters(self) -> list[str]:
@@ -153,7 +168,7 @@ class MediaDialog(ctk.CTkToplevel):
     def _preview(self)->None:
         letters=self._selected_letters()
         if not letters: return
-        item=next(item for item in self.items if item["letter"]==letters[0])
-        text="\n".join(f"{key}: {value}" for key,value in item.items())
-        dialog=ctk.CTkToplevel(self); dialog.title(f"Nośnik {letters[0]}"); dialog.geometry("620x480"); dialog.configure(fg_color=self.colors["bg"])
-        box=ctk.CTkTextbox(dialog,font=("Cascadia Mono",10),fg_color=self.colors["card"],text_color=self.colors["text"]); box.pack(fill=tk.BOTH,expand=True,padx=14,pady=14); box.insert("1.0",text); box.configure(state="disabled")
+        selected=[item for item in self.items if item["letter"] in letters]
+        title="Informacje o nośniku" if len(selected)==1 else "Informacje o nośnikach"
+        if hasattr(self.report_host,"show_report"):
+            self.report_host.show_report(title, {"nośniki": selected})

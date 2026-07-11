@@ -2,6 +2,11 @@
 
 ## 2026-07-12 - samodzielne repo i pełne moduły Windows
 
+- Zastąpiono przerysowane logo dokładnym algorytmem EvidLockV2: przezroczyste RGBA, cienki kontur i antyaliasing PIL.
+- Skopiowano bez zmian pięć oryginalnych ikon PNG nośników z EvidLockV2 i dołączono je do buildu PyInstaller.
+- Okna nośników, rejestru i logów są pojedynczymi instancjami; ponowne uruchomienie odświeża lub podnosi istniejące okno.
+- Dodano jedno współdzielone okno bieżącego raportu, które odświeża treść zamiast mnożyć podglądy.
+- Bieżący wynik każdego modułu można zapisać jako raport PDF z obsługą polskich znaków.
 - Dodano logo tarczy i kłódki o geometrii zgodnej z EvidLockV2.
 - Skórka `Black` korzysta z żółto-czarnej palety EvidLockV2, włącznie z wyglądem bocznego menu i neutralnych przycisków.
 - Przebudowano główny panel Szybkich akcji na cztery zakładki tematyczne z limitem 32 aktywnych narzędzi.

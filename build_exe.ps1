@@ -46,6 +46,7 @@ Write-Host "Budowanie EvidLock Light GUI..."
     --onefile `
     --windowed `
     --collect-all tkinterdnd2 `
+    --add-data "$Root\evidlock_light\assets;evidlock_light\assets" `
     --name EvidLockLight `
     --distpath $Dist `
     --workpath (Join-Path $Build "gui") `

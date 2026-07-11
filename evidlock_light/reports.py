@@ -53,6 +53,26 @@ def write_simple_pdf(title: str, rows: Iterable[tuple[str, str]], path: str | Pa
     return output
 
 
+def result_rows(data: object) -> list[tuple[str, str]]:
+    """Spłaszcza wynik dowolnego modułu do czytelnych wierszy raportu."""
+
+    if isinstance(data, dict):
+        rows: list[tuple[str, str]] = []
+        for key, value in data.items():
+            text = json.dumps(value, ensure_ascii=False, indent=2) if isinstance(value, (dict, list)) else str(value)
+            rows.append((str(key), text))
+        return rows
+    if isinstance(data, list):
+        return [(str(index), json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else str(value)) for index, value in enumerate(data, 1)]
+    return [("Wynik", str(data))]
+
+
+def write_result_pdf(title: str, data: object, path: str | Path | None = None) -> Path:
+    """Zapisuje aktualny wynik dowolnej funkcji jako raport PDF."""
+
+    return write_simple_pdf(title, result_rows(data), path=path)
+
+
 def _register_unicode_font() -> str:
     candidates = [
         Path("C:/Windows/Fonts/segoeui.ttf"),

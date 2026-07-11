@@ -11,7 +11,7 @@ EvidLock Light to samodzielna, modułowa aplikacja do codziennej pracy techniczn
 - logika w małych modułach usługowych,
 - WinAPI tam, gdzie Windows udostępnia dane systemowe,
 - odpinane panele robocze jak w EvidLockV2,
-- centralny panel Szybkich akcji z logo EvidLockV2, zakładkami tematycznymi i konfiguracją pod ikoną koła zębatego,
+- centralny panel Szybkich akcji z przezroczystym, konturowym logo generowanym dokładnie jak w EvidLockV2, zakładkami tematycznymi i konfiguracją pod ikoną koła zębatego,
 - do 32 aktywnych narzędzi, z przeciąganiem i zmianą kolejności wewnątrz kategorii,
 - przeciąganie plików i katalogów z kontrolą duplikatów,
 - bez dashboardu sprawy, kółka integralności, numeru sprawy i OCR,
@@ -22,7 +22,7 @@ EvidLock Light to samodzielna, modułowa aplikacja do codziennej pracy techniczn
 
 Główny ekran pokazuje tylko aktywne narzędzia w czterech zakładkach: `Dane i integralność`, `Nośniki i raporty`, `Sieć i pamięć` oraz `Windows i system`. Dodawanie, usuwanie i kolejność narzędzi są dostępne w osobnym konfiguratorze otwieranym ikoną koła zębatego. Nad panelem znajduje się duża strefa przeciągania plików i katalogów.
 
-- Nośniki: pełne okno dysków, lekkie ikony USB/lokalny/sieciowy/optyczny/RAM jak w EvidLockV2, zajętość oraz raport PDF/JSON.
+- Nośniki: jedno odświeżane okno dysków, oryginalne ikony PNG USB/lokalny/sieciowy/optyczny z EvidLockV2, zajętość oraz raport PDF/JSON.
 - Hash SHA-256: pliki, katalogi, manifest JSON/CSV, weryfikacja manifestu.
 - Zabezpieczenie danych: archiwizacja ZIP, kopia 1:1, porównanie A/B.
 - Kopia i porównanie: osobne okno, pasek postępu, automatyczna weryfikacja SHA-256 oraz raport PDF/TXT/JSON.
@@ -32,6 +32,7 @@ Główny ekran pokazuje tylko aktywne narzędzia w czterech zakładkach: `Dane i
 - Rejestr Windows: wybór hive i fizycznych gałęzi, `.hiv`, `.reg`, CSV, XLSX, TXT, PDF, JSON, SHA-256 i read-only.
 - Logi Windows: tryb szybki/pełny, zakres 24h/7d/30d/cały/własny, limit, sortowanie, Application/Security/Setup/System, EVTX, CSV, XLSX, TXT, PDF, JSON, SHA-256 i read-only.
 - Raporty: PDF, JSON, TXT, CSV i XLSX zależnie od modułu.
+- Bieżący raport: jedno współdzielone okno, które zastępuje treść po kolejnej operacji i zapisuje wynik dowolnego modułu do PDF.
 - Dziennik: wpisy operacji programu, podgląd i eksport TXT/JSON.
 - Zrzut ekranu/nagrywanie: planowany moduł lekki, ograniczony do głównego okna.
 
