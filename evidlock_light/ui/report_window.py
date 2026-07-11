@@ -18,6 +18,7 @@ class ReportWindow(ctk.CTkToplevel):
         self.on_close = on_close
         self.report_title = "Bieżący raport"
         self.report_data: object = {}
+        self.current_pdf = None
         self.title("Bieżący raport")
         self.geometry("860x640")
         self.minsize(680, 480)
@@ -32,8 +33,9 @@ class ReportWindow(ctk.CTkToplevel):
         self.heading.grid(row=0, column=0, sticky="ew")
         self.status = ctk.CTkLabel(header, text="Okno odświeża się po każdym kolejnym wyniku.", text_color=colors["muted"], font=("Segoe UI", 9), anchor="w")
         self.status.grid(row=1, column=0, sticky="ew", pady=(2, 0))
-        ctk.CTkButton(header, text="Zapisz PDF", width=115, command=self._save_pdf).grid(row=0, column=1, rowspan=2, padx=(8, 4))
-        ctk.CTkButton(header, text="Zamknij", width=95, command=self._close, fg_color=colors["soft"], text_color=colors["text"], border_width=1, border_color=colors["border"]).grid(row=0, column=2, rowspan=2, padx=(4, 0))
+        ctk.CTkButton(header, text="Przeglądaj PDF", width=125, command=self._browse_pdf).grid(row=0, column=1, rowspan=2, padx=(8, 4))
+        ctk.CTkButton(header, text="Zapisz PDF", width=105, command=self._save_pdf).grid(row=0, column=2, rowspan=2, padx=4)
+        ctk.CTkButton(header, text="Zamknij", width=90, command=self._close, fg_color=colors["soft"], text_color=colors["text"], border_width=1, border_color=colors["border"]).grid(row=0, column=3, rowspan=2, padx=(4, 0))
 
         self.content = ctk.CTkTextbox(self, fg_color=colors["card"], text_color=colors["text"], border_width=1, border_color=colors["border"], font=("Cascadia Mono", 10), wrap="word")
         self.content.grid(row=1, column=0, sticky="nsew", padx=18, pady=(0, 18))
@@ -42,6 +44,7 @@ class ReportWindow(ctk.CTkToplevel):
     def update_report(self, title: str, data: object) -> None:
         self.report_title = title or "Bieżący raport"
         self.report_data = data
+        self.current_pdf = reports.find_pdf(data)
         self.title(self.report_title)
         self.heading.configure(text=self.report_title)
         text = data if isinstance(data, str) else json.dumps(data, ensure_ascii=False, indent=2, default=str)
@@ -57,9 +60,18 @@ class ReportWindow(ctk.CTkToplevel):
             return
         try:
             output = reports.write_result_pdf(self.report_title, self.report_data, path)
+            self.current_pdf = output
             self.status.configure(text=f"Zapisano PDF: {output}")
         except Exception as exc:
             messagebox.showerror("Raport PDF", str(exc), parent=self)
+
+    def _browse_pdf(self) -> None:
+        try:
+            pdf_path = self.current_pdf or reports.write_result_pdf(self.report_title, self.report_data)
+            self.current_pdf = reports.open_pdf(pdf_path)
+            self.status.configure(text=f"Otwarto PDF: {self.current_pdf}")
+        except Exception as exc:
+            messagebox.showerror("Przeglądaj PDF", str(exc), parent=self)
 
     def _close(self) -> None:
         if self.on_close:

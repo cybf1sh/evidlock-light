@@ -10,7 +10,7 @@ from tkinter import filedialog, messagebox
 
 import customtkinter as ctk
 
-from .. import winapi
+from .. import reports, winapi
 from ..services import registry
 
 
@@ -57,8 +57,9 @@ class RegistryExportDialog(ctk.CTkToplevel):
         self.log=ctk.CTkTextbox(self,fg_color=colors["card"],text_color=colors["text"],font=("Cascadia Mono",10),wrap="word",border_width=1,border_color=colors["border"]); self.log.grid(row=5,column=0,sticky="nsew",padx=18,pady=(0,10))
         footer=ctk.CTkFrame(self,fg_color="transparent"); footer.grid(row=6,column=0,sticky="ew",padx=18,pady=(0,14)); footer.grid_columnconfigure(0,weight=1)
         self.open_button=ctk.CTkButton(footer,text="Otwórz katalog",state="disabled",command=self._open,width=130); self.open_button.grid(row=0,column=0,sticky="w")
-        ctk.CTkButton(footer,text="Zamknij",command=self.destroy,width=105,fg_color=colors["soft"],text_color=colors["text"],border_width=1,border_color=colors["border"]).grid(row=0,column=2,padx=(8,0))
-        self.export_button=ctk.CTkButton(footer,text="Eksportuj",command=self._start,width=140,fg_color="#be123c"); self.export_button.grid(row=0,column=1)
+        self.browse_pdf=ctk.CTkButton(footer,text="Przeglądaj PDF",state="disabled",command=self._browse_pdf,width=125); self.browse_pdf.grid(row=0,column=1,padx=(8,0))
+        self.export_button=ctk.CTkButton(footer,text="Eksportuj",command=self._start,width=140,fg_color="#be123c"); self.export_button.grid(row=0,column=2,padx=(8,0))
+        ctk.CTkButton(footer,text="Zamknij",command=self.destroy,width=105,fg_color=colors["soft"],text_color=colors["text"],border_width=1,border_color=colors["border"]).grid(row=0,column=3,padx=(8,0))
 
     def _choose_output(self):
         path=filedialog.askdirectory(parent=self,title="Katalog eksportu rejestru")
@@ -70,7 +71,7 @@ class RegistryExportDialog(ctk.CTkToplevel):
         if not self.export_hives.get() and not self.export_data.get(): messagebox.showwarning("Eksport rejestru","Wybierz przynajmniej jeden typ eksportu.",parent=self); return
         if self.export_hives.get() and not hives: messagebox.showwarning("Eksport rejestru","Wybierz przynajmniej jeden hive.",parent=self); return
         if self.export_data.get() and not branches: messagebox.showwarning("Eksport rejestru","Wybierz przynajmniej jedną gałąź danych.",parent=self); return
-        self.running=True; self.result=None; self.log.delete("1.0","end"); self.progress.set(0); self.export_button.configure(state="disabled",text="Eksportowanie...")
+        self.running=True; self.result=None; self.browse_pdf.configure(state="disabled"); self.log.delete("1.0","end"); self.progress.set(0); self.export_button.configure(state="disabled",text="Eksportowanie...")
         def worker():
             try:
                 result=registry.export_registry(hives,branches,self.export_hives.get(),self.export_data.get(),self.output_dir.get() or None,self._report)
@@ -81,8 +82,13 @@ class RegistryExportDialog(ctk.CTkToplevel):
     def _report(self,percent,message):self.after(0,lambda:self._update(percent,message))
     def _update(self,percent,message):self.progress.set(max(0,min(100,percent))/100); self.log.insert("end",message+"\n"); self.log.see("end")
     def _finish(self,result):
-        self.running=False; self.result=result; self.progress.set(1); self.log.insert("end",f"\nGotowe. Rekordy: {result.get('record_count')}\n{result.get('output_dir')}"); self.export_button.configure(state="normal",text="Eksportuj"); self.open_button.configure(state="normal")
+        self.running=False; self.result=result; self.progress.set(1); self.log.insert("end",f"\nGotowe. Rekordy: {result.get('record_count')}\n{result.get('output_dir')}"); self.export_button.configure(state="normal",text="Eksportuj"); self.open_button.configure(state="normal"); self.browse_pdf.configure(state="normal" if reports.find_pdf(result) else "disabled")
         if self.on_result:self.on_result(result)
     def _fail(self,error):self.running=False; self.progress.configure(progress_color=self.colors["red"]); self.log.insert("end",f"\nBŁĄD: {error}"); self.export_button.configure(state="normal",text="Eksportuj")
     def _open(self):
         if self.result and self.result.get("output_dir"):os.startfile(self.result["output_dir"])
+    def _browse_pdf(self):
+        pdf=reports.find_pdf(self.result)
+        if pdf:
+            try:reports.open_pdf(pdf)
+            except Exception as exc:messagebox.showerror("Przeglądaj PDF",str(exc),parent=self)

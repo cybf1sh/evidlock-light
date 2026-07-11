@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Iterable
 
@@ -71,6 +72,45 @@ def write_result_pdf(title: str, data: object, path: str | Path | None = None) -
     """Zapisuje aktualny wynik dowolnej funkcji jako raport PDF."""
 
     return write_simple_pdf(title, result_rows(data), path=path)
+
+
+def find_pdf(data: object) -> Path | None:
+    """Znajduje istniejący PDF w wyniku zwróconym przez dowolny moduł."""
+
+    if isinstance(data, dict):
+        for key in ("pdf", "report_pdf"):
+            candidate = data.get(key)
+            if candidate:
+                path = Path(str(candidate))
+                if path.is_file() and path.suffix.lower() == ".pdf":
+                    return path
+        for value in data.values():
+            found = find_pdf(value)
+            if found:
+                return found
+    elif isinstance(data, (list, tuple)):
+        for value in data:
+            found = find_pdf(value)
+            if found:
+                return found
+    elif isinstance(data, (str, Path)):
+        try:
+            path = Path(data)
+            if path.is_file() and path.suffix.lower() == ".pdf":
+                return path
+        except (OSError, ValueError):
+            return None
+    return None
+
+
+def open_pdf(path: str | Path) -> Path:
+    """Otwiera PDF w domyślnej przeglądarce systemowej Windows."""
+
+    target = Path(path).resolve()
+    if not target.is_file() or target.suffix.lower() != ".pdf":
+        raise FileNotFoundError(f"Nie znaleziono raportu PDF: {target}")
+    os.startfile(str(target))
+    return target
 
 
 def _register_unicode_font() -> str:

@@ -11,6 +11,7 @@ from tkinter import filedialog, messagebox
 
 import customtkinter as ctk
 
+from .. import reports
 from ..services import copying
 
 
@@ -55,7 +56,7 @@ class CopyCompareDialog(ctk.CTkToplevel):
         footer = ctk.CTkFrame(self, fg_color="transparent")
         footer.grid(row=4, column=0, sticky="ew", padx=18, pady=14)
         footer.grid_columnconfigure(0, weight=1)
-        self.open_reports = ctk.CTkButton(footer, text="Otwórz raporty", command=self._open_reports, state="disabled", width=130)
+        self.open_reports = ctk.CTkButton(footer, text="Przeglądaj PDF", command=self._open_reports, state="disabled", width=130)
         self.open_reports.grid(row=0, column=0, sticky="w")
         self.compare_button = ctk.CTkButton(footer, text="Porównaj A/B", command=lambda: self._start("compare"), width=130, fg_color=colors["teal"])
         self.compare_button.grid(row=0, column=1, padx=(8, 0))
@@ -144,6 +145,9 @@ class CopyCompareDialog(ctk.CTkToplevel):
     def _open_reports(self) -> None:
         if not self.result:
             return
-        report = self.result.get("report_pdf") or self.result.get("report_json")
+        report = reports.find_pdf(self.result)
         if report:
-            os.startfile(str(Path(report).parent))
+            try:
+                reports.open_pdf(report)
+            except Exception as exc:
+                messagebox.showerror("Przeglądaj PDF", str(exc), parent=self)

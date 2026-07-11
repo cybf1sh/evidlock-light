@@ -2,6 +2,8 @@
 
 ## 2026-07-12 - samodzielne repo i pełne moduły Windows
 
+- Dodano `Przeglądaj PDF` do bieżącego raportu, nośników, rejestru, logów oraz kopii/porównania.
+- Dla wyniku bez własnego PDF przycisk automatycznie generuje raport i otwiera go w domyślnej przeglądarce systemowej.
 - Zastąpiono przerysowane logo dokładnym algorytmem EvidLockV2: przezroczyste RGBA, cienki kontur i antyaliasing PIL.
 - Skopiowano bez zmian pięć oryginalnych ikon PNG nośników z EvidLockV2 i dołączono je do buildu PyInstaller.
 - Okna nośników, rejestru i logów są pojedynczymi instancjami; ponowne uruchomienie odświeża lub podnosi istniejące okno.

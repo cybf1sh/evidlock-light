@@ -8,7 +8,9 @@ from pathlib import Path
 
 import customtkinter as ctk
 from PIL import Image
+from tkinter import messagebox
 
+from .. import reports
 from ..services import media
 
 
@@ -19,6 +21,7 @@ class MediaDialog(ctk.CTkToplevel):
         self.on_result = on_result
         self.report_host = parent
         self.icon_images: list[ctk.CTkImage] = []
+        self.pdf_path: str | None = None
         self.items = media.list_media()
         self.selected: dict[str, tk.BooleanVar] = {}
         self.title("Informacje o nośnikach")
@@ -48,8 +51,10 @@ class MediaDialog(ctk.CTkToplevel):
         footer = ctk.CTkFrame(self, fg_color="transparent")
         footer.grid(row=5, column=0, sticky="ew", padx=18, pady=14)
         footer.grid_columnconfigure(0, weight=1)
-        ctk.CTkButton(footer, text="Zamknij", width=105, command=self.destroy, fg_color=colors["soft"], text_color=colors["text"], border_width=1, border_color=colors["border"]).grid(row=0, column=2, padx=(8, 0))
-        ctk.CTkButton(footer, text="Podgląd", width=105, command=self._preview).grid(row=0, column=1, padx=(8, 0))
+        ctk.CTkButton(footer, text="Zamknij", width=100, command=self.destroy, fg_color=colors["soft"], text_color=colors["text"], border_width=1, border_color=colors["border"]).grid(row=0, column=3, padx=(8, 0))
+        ctk.CTkButton(footer, text="Podgląd", width=95, command=self._preview).grid(row=0, column=2, padx=(8, 0))
+        self.browse_pdf = ctk.CTkButton(footer, text="Przeglądaj PDF", width=125, command=self._browse_pdf, state="disabled")
+        self.browse_pdf.grid(row=0, column=1, padx=(8, 0))
         self.generate = ctk.CTkButton(footer, text="Generuj raport", width=150, command=self._generate)
         self.generate.grid(row=0, column=0, sticky="e")
         self._render()
@@ -149,7 +154,7 @@ class MediaDialog(ctk.CTkToplevel):
     def _generate(self) -> None:
         letters=self._selected_letters()
         if not letters: return
-        self.generate.configure(state="disabled",text="Generowanie..."); self.progress.set(.05)
+        self.pdf_path=None; self.browse_pdf.configure(state="disabled"); self.generate.configure(state="disabled",text="Generowanie..."); self.progress.set(.05)
         def worker():
             try:
                 result=media.report_media(letters=letters)
@@ -159,11 +164,16 @@ class MediaDialog(ctk.CTkToplevel):
         threading.Thread(target=worker,daemon=True).start()
 
     def _finish(self,path:str)->None:
-        self.progress.set(1); self.status.configure(text=f"Raport gotowy: {path}"); self.generate.configure(state="normal",text="Generuj raport")
+        self.pdf_path=path; self.progress.set(1); self.status.configure(text=f"Raport gotowy: {path}"); self.generate.configure(state="normal",text="Generuj raport"); self.browse_pdf.configure(state="normal")
         if self.on_result: self.on_result({"pdf":path})
 
     def _fail(self,exc:Exception)->None:
         self.progress.configure(progress_color=self.colors["red"]); self.status.configure(text=f"Błąd: {exc}"); self.generate.configure(state="normal",text="Generuj raport")
+
+    def _browse_pdf(self)->None:
+        if self.pdf_path:
+            try: reports.open_pdf(self.pdf_path)
+            except Exception as exc: messagebox.showerror("Przeglądaj PDF",str(exc),parent=self)
 
     def _preview(self)->None:
         letters=self._selected_letters()

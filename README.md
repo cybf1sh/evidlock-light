@@ -33,6 +33,7 @@ Główny ekran pokazuje tylko aktywne narzędzia w czterech zakładkach: `Dane i
 - Logi Windows: tryb szybki/pełny, zakres 24h/7d/30d/cały/własny, limit, sortowanie, Application/Security/Setup/System, EVTX, CSV, XLSX, TXT, PDF, JSON, SHA-256 i read-only.
 - Raporty: PDF, JSON, TXT, CSV i XLSX zależnie od modułu.
 - Bieżący raport: jedno współdzielone okno, które zastępuje treść po kolejnej operacji i zapisuje wynik dowolnego modułu do PDF.
+- `Przeglądaj PDF`: otwiera gotowy raport w domyślnej przeglądarce; dla bieżącego wyniku automatycznie tworzy PDF, jeśli jeszcze nie istnieje.
 - Dziennik: wpisy operacji programu, podgląd i eksport TXT/JSON.
 - Zrzut ekranu/nagrywanie: planowany moduł lekki, ograniczony do głównego okna.
 

@@ -9,7 +9,7 @@ from tkinter import filedialog, messagebox
 
 import customtkinter as ctk
 
-from .. import winapi
+from .. import reports, winapi
 from ..services import windows_logs
 
 
@@ -55,8 +55,9 @@ class WindowsLogsDialog(ctk.CTkToplevel):
         self.log=ctk.CTkTextbox(self,fg_color=colors["card"],text_color=colors["text"],font=("Cascadia Mono",10),border_width=1,border_color=colors["border"]); self.log.grid(row=6,column=0,sticky="nsew",padx=18,pady=(0,10))
         footer=ctk.CTkFrame(self,fg_color="transparent"); footer.grid(row=7,column=0,sticky="ew",padx=18,pady=(0,14)); footer.grid_columnconfigure(0,weight=1)
         self.open_button=ctk.CTkButton(footer,text="Otwórz katalog",state="disabled",command=self._open,width=130); self.open_button.grid(row=0,column=0,sticky="w")
-        ctk.CTkButton(footer,text="Zamknij",command=self.destroy,width=105,fg_color=colors["soft"],text_color=colors["text"],border_width=1,border_color=colors["border"]).grid(row=0,column=2,padx=(8,0))
-        self.export_button=ctk.CTkButton(footer,text="Rozpocznij eksport",command=self._start,width=170); self.export_button.grid(row=0,column=1)
+        self.browse_pdf=ctk.CTkButton(footer,text="Przeglądaj PDF",state="disabled",command=self._browse_pdf,width=125); self.browse_pdf.grid(row=0,column=1,padx=(8,0))
+        self.export_button=ctk.CTkButton(footer,text="Rozpocznij eksport",command=self._start,width=170); self.export_button.grid(row=0,column=2,padx=(8,0))
+        ctk.CTkButton(footer,text="Zamknij",command=self.destroy,width=105,fg_color=colors["soft"],text_color=colors["text"],border_width=1,border_color=colors["border"]).grid(row=0,column=3,padx=(8,0))
         self._range_state()
 
     def _section(self,parent,title,row,column,columnspan=1):
@@ -75,7 +76,7 @@ class WindowsLogsDialog(ctk.CTkToplevel):
         if self.running:return
         try:options=self._collect_options()
         except Exception as exc:messagebox.showwarning("Opcje logów",str(exc),parent=self);return
-        self.running=True;self.result=None;self.log.delete("1.0","end");self.progress.set(0);self.export_button.configure(state="disabled",text="Eksportowanie...")
+        self.running=True;self.result=None;self.browse_pdf.configure(state="disabled");self.log.delete("1.0","end");self.progress.set(0);self.export_button.configure(state="disabled",text="Eksportowanie...")
         for bar in self.per_log.values():bar.set(0)
         def worker():
             try:
@@ -87,8 +88,13 @@ class WindowsLogsDialog(ctk.CTkToplevel):
         self.progress.set(max(0,min(100,percent))/100);self.status.configure(text=f"{int(percent)}% | {message}");self.log.insert("end",message+"\n");self.log.see("end")
         if label in self.per_log:self.per_log[label].set(max(0,min(100,log_percent or 0))/100)
     def _finish(self,result):
-        self.running=False;self.result=result;self.progress.set(1);self.status.configure(text=f"Gotowe. Rekordy: {result.get('event_count')}");self.log.insert("end",f"\nKatalog: {result.get('output_dir')}");self.export_button.configure(state="normal",text="Rozpocznij eksport");self.open_button.configure(state="normal")
+        self.running=False;self.result=result;self.progress.set(1);self.status.configure(text=f"Gotowe. Rekordy: {result.get('event_count')}");self.log.insert("end",f"\nKatalog: {result.get('output_dir')}");self.export_button.configure(state="normal",text="Rozpocznij eksport");self.open_button.configure(state="normal");self.browse_pdf.configure(state="normal" if reports.find_pdf(result) else "disabled")
         if self.on_result:self.on_result(result)
     def _fail(self,error):self.running=False;self.progress.configure(progress_color=self.colors["red"]);self.status.configure(text=f"Błąd: {error}");self.log.insert("end",f"\nBŁĄD: {error}");self.export_button.configure(state="normal",text="Rozpocznij eksport")
     def _open(self):
         if self.result and self.result.get("output_dir"):os.startfile(self.result["output_dir"])
+    def _browse_pdf(self):
+        pdf=reports.find_pdf(self.result)
+        if pdf:
+            try:reports.open_pdf(pdf)
+            except Exception as exc:messagebox.showerror("Przeglądaj PDF",str(exc),parent=self)
