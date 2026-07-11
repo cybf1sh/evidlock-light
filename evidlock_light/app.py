@@ -24,6 +24,7 @@ from .services import archive, capture, copying, docs, hashing, journal, media, 
 from .ui.copy_tool import CopyCompareDialog
 from .ui.drop_zone import DropZone
 from .ui.media_dialog import MediaDialog
+from .ui.logo import EvidLockLogo
 from .ui.progress import ProgressDialog
 from .ui.registry_dialog import RegistryExportDialog
 from .ui.windows_logs_dialog import WindowsLogsDialog
@@ -36,6 +37,13 @@ except Exception:
 
 FONT = "Segoe UI"
 FONT_MONO = "Cascadia Mono"
+QUICK_LIMIT = 32
+QUICK_CATEGORIES = (
+    "Dane i integralność",
+    "Nośniki i raporty",
+    "Sieć i pamięć",
+    "Windows i system",
+)
 
 
 class EvidLockLightApp(ctk.CTk):
@@ -58,6 +66,7 @@ class EvidLockLightApp(ctk.CTk):
         self.geometry("1240x760")
         self.minsize(1040, 640)
         self.colors = themes.palette(self.skin)
+        self._apply_ctk_skin_defaults()
         self.current_page = "Szybkie akcje"
         self.nav_buttons: dict[str, ctk.CTkButton] = {}
         self.detached_windows: list[ctk.CTkToplevel] = []
@@ -69,6 +78,12 @@ class EvidLockLightApp(ctk.CTk):
         self.quick_count_label: ctk.CTkLabel | None = None
         self.quick_drag_id: str | None = None
         self.quick_drag_widgets: list[tuple[str, ctk.CTkFrame]] = []
+        self.quick_drag_widgets_by_category: dict[str, list[tuple[str, ctk.CTkFrame]]] = {}
+        self.quick_tab_frames: dict[str, ctk.CTkScrollableFrame] = {}
+        self.quick_editor_frames: dict[str, tuple[ctk.CTkScrollableFrame, ctk.CTkScrollableFrame]] = {}
+        self.quick_editor: ctk.CTkToplevel | None = None
+        self.quick_editor_count: ctk.CTkLabel | None = None
+        self.quick_drag_category: str | None = None
         self.dropped_paths: list[str] = []
         self.drop_zone: DropZone | None = None
         self._build_shell()
@@ -86,8 +101,11 @@ class EvidLockLightApp(ctk.CTk):
 
         brand = ctk.CTkFrame(sidebar, fg_color="transparent")
         brand.pack(fill=tk.X, padx=18, pady=(22, 18))
-        ctk.CTkLabel(brand, text="EvidLock", text_color=self.colors["brand"], font=(FONT, 19, "bold"), anchor="w").pack(fill=tk.X)
-        ctk.CTkLabel(brand, text="Light Workstation", text_color=self.colors["sidebar_muted"], font=(FONT, 10), anchor="w").pack(fill=tk.X)
+        EvidLockLogo(brand, self.colors["sidebar"], self.colors["brand"], self.colors["logo_fill"], 52).pack(side=tk.LEFT)
+        brand_text = ctk.CTkFrame(brand, fg_color="transparent")
+        brand_text.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(9, 0))
+        ctk.CTkLabel(brand_text, text="EvidLock", text_color=self.colors["brand"], font=(FONT, 17, "bold"), anchor="w").pack(fill=tk.X)
+        ctk.CTkLabel(brand_text, text="Light Workstation", text_color=self.colors["sidebar_muted"], font=(FONT, 9), anchor="w").pack(fill=tk.X)
 
         for label in (
             "Dashboard",
@@ -103,6 +121,8 @@ class EvidLockLightApp(ctk.CTk):
             "Konsola",
             "O programie",
         ):
+            inactive_bg = "#fff8c5" if self.skin == "black" else "transparent"
+            inactive_hover = "#fde68a" if self.skin == "black" else self.colors["nav_hover"]
             button = ctk.CTkButton(
                 sidebar,
                 text=label,
@@ -110,8 +130,8 @@ class EvidLockLightApp(ctk.CTk):
                 anchor="w",
                 height=40,
                 corner_radius=8,
-                fg_color="transparent",
-                hover_color=self.colors["nav_hover"],
+                fg_color=inactive_bg,
+                hover_color=inactive_hover,
                 text_color=self.colors["sidebar_text"],
                 font=(FONT, 11, "bold" if label == "Dashboard" else "normal"),
             )
@@ -173,13 +193,24 @@ class EvidLockLightApp(ctk.CTk):
         self.content = ctk.CTkFrame(main, fg_color="transparent")
         self.content.grid(row=1, column=0, sticky="nsew", padx=18, pady=(0, 18))
 
+    def _apply_ctk_skin_defaults(self) -> None:
+        """Ujednolica neutralne przyciski z aktywną paletą aplikacji."""
+
+        button_theme = ctk.ThemeManager.theme["CTkButton"]
+        button_theme["fg_color"] = self.colors["accent"]
+        button_theme["hover_color"] = self.colors["accent_hover"]
+        button_theme["text_color"] = "#ffffff"
+
     def show_page(self, page: str) -> None:
         self.current_page = page
         for name, button in self.nav_buttons.items():
             active = name == page
+            inactive_bg = "#fff8c5" if self.skin == "black" else "transparent"
+            inactive_hover = "#fde68a" if self.skin == "black" else self.colors["nav_hover"]
             button.configure(
-                fg_color=self.colors["accent"] if active else "transparent",
-                hover_color=self.colors["accent_hover"] if active else self.colors["nav_hover"],
+                fg_color=self.colors["accent"] if active else inactive_bg,
+                hover_color=self.colors["accent_hover"] if active else inactive_hover,
+                text_color="#ffffff" if active and self.skin == "black" else self.colors["sidebar_text"],
                 font=(FONT, 11, "bold" if active else "normal"),
             )
         if self.content is None:
@@ -218,6 +249,7 @@ class EvidLockLightApp(ctk.CTk):
         themes.save_skin(skin)
         ctk.set_appearance_mode(themes.appearance_mode(skin))
         self.colors = themes.palette(skin)
+        self._apply_ctk_skin_defaults()
         for window in self.detached_windows:
             if window.winfo_exists():
                 window.destroy()
@@ -358,146 +390,307 @@ class EvidLockLightApp(ctk.CTk):
             "media": {"title": "Informacje o nośnikach", "text": "Okno dysków z ikonami, zajętością i raportem.", "category": "Nośniki i raporty", "color": self.colors["accent"], "command": self._open_media_dialog},
             "media_report": {"title": "Raport nośników", "text": "Raport PDF informacji o nośnikach.", "category": "Nośniki i raporty", "color": self.colors["purple"], "command": self._media_report},
             "reports": {"title": "Raporty", "text": "Otwórz centralny panel raportów.", "category": "Nośniki i raporty", "color": self.colors["red"], "command": lambda: self.show_page("Raporty")},
-            "network": {"title": "Network Analyzer", "text": "Skaner TCP i narzędzia TShark.", "category": "Network i pamięć", "color": self.colors["teal"], "command": lambda: self.show_page("Network")},
-            "memory": {"title": "Pamięć RAM", "text": "WinPmem, Volatility 3 i manager pamięci.", "category": "Network i pamięć", "color": self.colors["purple"], "command": lambda: self.show_page("Pamięć")},
-            "registry": {"title": "Eksport rejestru", "text": "Pełne okno hive, dane i raporty rejestru.", "category": "System Windows", "color": self.colors["red"], "command": self._open_registry_dialog},
-            "windows_logs": {"title": "Logi Windows", "text": "Pełne okno opcji, EVTX i raportów logów.", "category": "System Windows", "color": self.colors["red"], "command": self._open_windows_logs_dialog},
-            "journal": {"title": "Dziennik Light", "text": "Podgląd i eksport operacji programu.", "category": "System Windows", "color": self.colors["accent"], "command": lambda: self.show_page("Dziennik")},
-            "capture": {"title": "Zrzut okna", "text": "PNG wyłącznie z głównego okna.", "category": "System Windows", "color": self.colors["accent"], "command": lambda: self._run(lambda: {"png": str(capture.capture_window(self))})},
-            "console": {"title": "Konsola", "text": "Wbudowane CLI wszystkich modułów.", "category": "System Windows", "color": self.colors["purple"], "command": lambda: self.show_page("Konsola")},
+            "network": {"title": "Network Analyzer", "text": "Skaner TCP i narzędzia TShark.", "category": "Sieć i pamięć", "color": self.colors["teal"], "command": lambda: self.show_page("Network")},
+            "memory": {"title": "Pamięć RAM", "text": "WinPmem, Volatility 3 i manager pamięci.", "category": "Sieć i pamięć", "color": self.colors["purple"], "command": lambda: self.show_page("Pamięć")},
+            "registry": {"title": "Eksport rejestru", "text": "Pełne okno hive, dane i raporty rejestru.", "category": "Windows i system", "color": self.colors["red"], "command": self._open_registry_dialog},
+            "windows_logs": {"title": "Logi Windows", "text": "Pełne okno opcji, EVTX i raportów logów.", "category": "Windows i system", "color": self.colors["red"], "command": self._open_windows_logs_dialog},
+            "journal": {"title": "Dziennik Light", "text": "Podgląd i eksport operacji programu.", "category": "Windows i system", "color": self.colors["accent"], "command": lambda: self.show_page("Dziennik")},
+            "capture": {"title": "Zrzut okna", "text": "PNG wyłącznie z głównego okna.", "category": "Windows i system", "color": self.colors["accent"], "command": lambda: self._run(lambda: {"png": str(capture.capture_window(self))})},
+            "console": {"title": "Konsola", "text": "Wbudowane CLI wszystkich modułów.", "category": "Windows i system", "color": self.colors["purple"], "command": lambda: self.show_page("Konsola")},
         }
 
-    def _quick_ids(self) -> list[str]:
-        definitions = self._tool_definitions()
-        saved = themes.load_settings().get("quick_actions")
-        default = ["copy", "compare", "hash", "media", "network", "windows_logs"]
-        source = saved if isinstance(saved, list) else default
-        result = [item for item in source if item in definitions]
-        return list(dict.fromkeys(result))[:8]
+    def _default_quick_config(self) -> dict[str, list[str]]:
+        return {
+            "Dane i integralność": ["copy", "compare", "hash", "archive"],
+            "Nośniki i raporty": ["media", "reports"],
+            "Sieć i pamięć": ["network", "memory"],
+            "Windows i system": ["windows_logs", "registry", "capture"],
+        }
 
-    def _save_quick_ids(self, items: list[str]) -> None:
+    def _quick_config(self) -> dict[str, list[str]]:
+        definitions = self._tool_definitions()
+        settings = themes.load_settings()
+        saved = settings.get("quick_actions_by_category")
+        if not isinstance(saved, dict):
+            legacy = settings.get("quick_actions")
+            if isinstance(legacy, list):
+                saved = {category: [item for item in legacy if definitions.get(item, {}).get("category") == category] for category in QUICK_CATEGORIES}
+            else:
+                saved = self._default_quick_config()
+        result = {category: [] for category in QUICK_CATEGORIES}
+        used: set[str] = set()
+        for category in QUICK_CATEGORIES:
+            values = saved.get(category, []) if isinstance(saved, dict) else []
+            for tool_id in values if isinstance(values, list) else []:
+                if tool_id in definitions and definitions[tool_id]["category"] == category and tool_id not in used:
+                    result[category].append(tool_id)
+                    used.add(tool_id)
+        return result
+
+    def _quick_ids(self) -> list[str]:
+        config = self._quick_config()
+        return [tool_id for category in QUICK_CATEGORIES for tool_id in config[category]][:QUICK_LIMIT]
+
+    def _save_quick_config(self, config: dict[str, list[str]]) -> None:
         data = themes.load_settings()
-        data["quick_actions"] = items[:8]
+        cleaned: dict[str, list[str]] = {}
+        count = 0
+        definitions = self._tool_definitions()
+        for category in QUICK_CATEGORIES:
+            cleaned[category] = []
+            for tool_id in config.get(category, []):
+                if count >= QUICK_LIMIT:
+                    break
+                if tool_id in definitions and definitions[tool_id]["category"] == category and tool_id not in cleaned[category]:
+                    cleaned[category].append(tool_id)
+                    count += 1
+        data["quick_actions_by_category"] = cleaned
+        data.pop("quick_actions", None)
         themes.save_settings(data)
 
     def _build_quick_workspace(self, parent, detached: bool = False) -> None:
         assert parent is not None
-        parent.grid_columnconfigure(0, weight=3)
-        parent.grid_columnconfigure(1, weight=2)
+        parent.grid_columnconfigure(0, weight=1)
         parent.grid_rowconfigure(2, weight=1)
-        self.drop_zone = DropZone(parent, self, self.colors, self.dropped_paths)
-        self.drop_zone.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 10))
+        self.drop_zone = DropZone(parent, self, self.colors, self.dropped_paths, large=True)
+        self.drop_zone.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+
         toolbar = ctk.CTkFrame(parent, fg_color=self.colors["card"], border_width=1, border_color=self.colors["border"], corner_radius=8)
-        toolbar.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(0, 10))
+        toolbar.grid(row=1, column=0, sticky="ew", pady=(0, 10))
         toolbar.grid_columnconfigure(0, weight=1)
-        ctk.CTkLabel(toolbar, text="Szybkie akcje", text_color=self.colors["text"], font=(FONT, 14, "bold"), anchor="w").grid(row=0, column=0, sticky="ew", padx=14, pady=(10, 2))
-        ctk.CTkLabel(toolbar, text="Przeciągnij kafel za uchwyt albo użyj strzałek. Narzędzia dodawaj z biblioteki po prawej.", text_color=self.colors["muted"], font=(FONT, 9), anchor="w").grid(row=1, column=0, sticky="ew", padx=14, pady=(0, 10))
-        self.quick_count_label = ctk.CTkLabel(toolbar, text="", text_color=self.colors["accent"], font=(FONT, 11, "bold"))
+        ctk.CTkLabel(toolbar, text="Szybkie akcje", text_color=self.colors["text"], font=(FONT, 15, "bold"), anchor="w").grid(row=0, column=0, sticky="ew", padx=14, pady=(10, 2))
+        ctk.CTkLabel(toolbar, text="Bieżące narzędzia są uporządkowane tematycznie. Konfigurację otwiera koło zębate.", text_color=self.colors["muted"], font=(FONT, 9), anchor="w").grid(row=1, column=0, sticky="ew", padx=14, pady=(0, 10))
+        self.quick_count_label = ctk.CTkLabel(toolbar, text="", text_color=self.colors["accent"], font=(FONT, 10, "bold"))
         self.quick_count_label.grid(row=0, column=1, rowspan=2, padx=8)
-        ctk.CTkButton(toolbar, text="Resetuj", width=86, command=self._reset_quick_actions, fg_color=self.colors["soft"], text_color=self.colors["text"], border_width=1, border_color=self.colors["border"]).grid(row=0, column=2, rowspan=2, padx=(0, 10))
+        gear = ctk.CTkButton(toolbar, text="⚙", width=38, height=34, command=self._open_quick_settings, fg_color=self.colors["soft"], hover_color=self.colors["border"], text_color=self.colors["text"], border_width=1, border_color=self.colors["border"], font=(FONT, 18))
+        gear.grid(row=0, column=2, rowspan=2, padx=(0, 10))
+        self._attach_tooltip(gear, "Konfiguruj Szybkie akcje")
 
-        selected_box = ctk.CTkFrame(parent, fg_color=self.colors["card"], border_width=1, border_color=self.colors["border"], corner_radius=8)
-        selected_box.grid(row=2, column=0, sticky="nsew", padx=(0, 10))
-        selected_box.grid_columnconfigure(0, weight=1)
-        selected_box.grid_rowconfigure(1, weight=1)
-        ctk.CTkLabel(selected_box, text="Twój panel", text_color=self.colors["text"], font=(FONT, 13, "bold"), anchor="w").grid(row=0, column=0, sticky="ew", padx=12, pady=(10, 6))
-        self.quick_selected_frame = ctk.CTkScrollableFrame(selected_box, fg_color="transparent")
-        self.quick_selected_frame.grid(row=1, column=0, sticky="nsew", padx=8, pady=(0, 8))
-
-        library = ctk.CTkScrollableFrame(parent, fg_color=self.colors["card"], border_width=1, border_color=self.colors["border"], corner_radius=8)
-        library.grid(row=2, column=1, sticky="nsew")
-        ctk.CTkLabel(library, text="Biblioteka narzędzi", text_color=self.colors["text"], font=(FONT, 13, "bold"), anchor="w").pack(fill=tk.X, padx=8, pady=(4, 8))
-        definitions = self._tool_definitions()
-        for category in ("Dane i integralność", "Nośniki i raporty", "Network i pamięć", "System Windows"):
-            ctk.CTkLabel(library, text=category, text_color=self.colors["muted"], font=(FONT, 10, "bold"), anchor="w").pack(fill=tk.X, padx=8, pady=(10, 5))
-            for tool_id, definition in definitions.items():
-                if definition["category"] == category:
-                    self._library_tool(library, tool_id, definition)
-        self._refresh_quick_selected()
+        tabs = ctk.CTkTabview(parent, fg_color=self.colors["card"], segmented_button_fg_color=self.colors["soft"], segmented_button_selected_color=self.colors["accent"], segmented_button_selected_hover_color=self.colors["accent_hover"], border_width=1, border_color=self.colors["border"], corner_radius=8)
+        tabs.grid(row=2, column=0, sticky="nsew")
+        self.quick_tab_frames = {}
+        for category in QUICK_CATEGORIES:
+            tab = tabs.add(category)
+            tab.grid_columnconfigure(0, weight=1)
+            tab.grid_rowconfigure(0, weight=1)
+            frame = ctk.CTkScrollableFrame(tab, fg_color="transparent")
+            frame.grid(row=0, column=0, sticky="nsew", padx=6, pady=6)
+            frame.grid_columnconfigure((0, 1), weight=1, uniform="quick")
+            self.quick_tab_frames[category] = frame
+        self._render_quick_tabs()
 
     def on_dropped_paths_changed(self) -> None:
         journal.log_event("INFO", "DragDrop", "Zmieniono listę przeciągniętych elementów", {"count": len(self.dropped_paths)})
 
-    def _library_tool(self, parent, tool_id: str, definition: dict) -> None:
-        row = ctk.CTkFrame(parent, fg_color=self.colors["soft"], corner_radius=6)
-        row.pack(fill=tk.X, padx=5, pady=3)
-        row.grid_columnconfigure(0, weight=1)
-        ctk.CTkLabel(row, text=definition["title"], text_color=self.colors["text"], font=(FONT, 10, "bold"), anchor="w").grid(row=0, column=0, sticky="ew", padx=10, pady=(7, 1))
-        ctk.CTkLabel(row, text=definition["text"], text_color=self.colors["muted"], font=(FONT, 8), anchor="w", wraplength=260, justify="left").grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 7))
-        ctk.CTkButton(row, text="+", width=32, height=30, command=lambda item=tool_id: self._add_quick_action(item), fg_color=definition["color"]).grid(row=0, column=1, rowspan=2, padx=8)
-
-    def _refresh_quick_selected(self) -> None:
-        if self.quick_selected_frame is None or not self.quick_selected_frame.winfo_exists():
-            return
-        for child in self.quick_selected_frame.winfo_children():
-            child.destroy()
-        ids = self._quick_ids()
+    def _render_quick_tabs(self) -> None:
+        config = self._quick_config()
         definitions = self._tool_definitions()
-        self.quick_drag_widgets = []
-        if self.quick_count_label is not None:
-            self.quick_count_label.configure(text=f"{len(ids)}/8")
-        for index, tool_id in enumerate(ids):
-            definition = definitions[tool_id]
-            card = ctk.CTkFrame(self.quick_selected_frame, fg_color=self.colors["soft"], border_width=1, border_color=self.colors["border"], corner_radius=7)
-            card.pack(fill=tk.X, pady=4)
-            card.grid_columnconfigure(1, weight=1)
-            handle = ctk.CTkLabel(card, text="↕", width=34, text_color=self.colors["muted"], font=(FONT, 18), cursor="fleur")
-            handle.grid(row=0, column=0, rowspan=2, padx=(6, 2))
-            handle.bind("<ButtonPress-1>", lambda _event, item=tool_id: self._start_quick_drag(item))
-            handle.bind("<ButtonRelease-1>", self._finish_quick_drag)
-            ctk.CTkLabel(card, text=definition["title"], text_color=self.colors["text"], font=(FONT, 11, "bold"), anchor="w").grid(row=0, column=1, sticky="ew", pady=(8, 1))
-            ctk.CTkLabel(card, text=definition["text"], text_color=self.colors["muted"], font=(FONT, 8), anchor="w").grid(row=1, column=1, sticky="ew", pady=(0, 8))
-            ctk.CTkButton(card, text="↑", width=30, height=28, command=lambda item=tool_id: self._move_quick(item, -1), state="disabled" if index == 0 else "normal").grid(row=0, column=2, rowspan=2, padx=(4, 2))
-            ctk.CTkButton(card, text="↓", width=30, height=28, command=lambda item=tool_id: self._move_quick(item, 1), state="disabled" if index == len(ids) - 1 else "normal").grid(row=0, column=3, rowspan=2, padx=2)
-            ctk.CTkButton(card, text="Uruchom", width=88, height=30, command=definition["command"], fg_color=definition["color"]).grid(row=0, column=4, rowspan=2, padx=(6, 2))
-            ctk.CTkButton(card, text="×", width=30, height=28, command=lambda item=tool_id: self._remove_quick_action(item), fg_color=self.colors["red"]).grid(row=0, column=5, rowspan=2, padx=(2, 8))
-            self.quick_drag_widgets.append((tool_id, card))
+        if self.quick_count_label is not None and self.quick_count_label.winfo_exists():
+            self.quick_count_label.configure(text=f"{len(self._quick_ids())}/{QUICK_LIMIT}")
+        for category, frame in self.quick_tab_frames.items():
+            if not frame.winfo_exists():
+                continue
+            for child in frame.winfo_children():
+                child.destroy()
+            selected = config[category]
+            if not selected:
+                ctk.CTkLabel(frame, text="Brak aktywnych narzędzi w tej zakładce. Dodaj je przez ⚙.", text_color=self.colors["muted"], font=(FONT, 10), anchor="center").grid(row=0, column=0, columnspan=2, sticky="ew", padx=20, pady=40)
+                continue
+            for index, tool_id in enumerate(selected):
+                definition = definitions[tool_id]
+                card = ctk.CTkFrame(frame, height=96, fg_color=self.colors["soft"], border_width=1, border_color=self.colors["border"], corner_radius=7)
+                card.grid(row=index // 2, column=index % 2, sticky="ew", padx=5, pady=5)
+                card.pack_propagate(False)
+                ctk.CTkFrame(card, width=5, fg_color=definition["color"], corner_radius=3).pack(side=tk.LEFT, fill=tk.Y, pady=6)
+                ctk.CTkButton(card, text="Uruchom", width=86, height=30, command=definition["command"], fg_color=definition["color"]).pack(side=tk.RIGHT, padx=10)
+                body = ctk.CTkFrame(card, fg_color="transparent")
+                body.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10, pady=8)
+                ctk.CTkLabel(body, text=definition["title"], text_color=self.colors["text"], font=(FONT, 11, "bold"), anchor="w").pack(fill=tk.X)
+                ctk.CTkLabel(body, text=definition["text"], text_color=self.colors["muted"], font=(FONT, 8), anchor="w", justify="left", wraplength=300).pack(fill=tk.X, pady=(1, 0))
+
+    def _open_quick_settings(self) -> None:
+        if self.quick_editor is not None:
+            try:
+                if self.quick_editor.winfo_exists():
+                    self.quick_editor.lift()
+                    self.quick_editor.focus_force()
+                    return
+            except Exception:
+                pass
+        window = ctk.CTkToplevel(self)
+        self.quick_editor = window
+        self.detached_windows.append(window)
+        window.title("Konfiguracja Szybkich akcji")
+        window.geometry("1120x760")
+        window.minsize(920, 620)
+        window.configure(fg_color=self.colors["bg"])
+        window.grid_columnconfigure(0, weight=1)
+        window.grid_rowconfigure(1, weight=1)
+        header = ctk.CTkFrame(window, fg_color="transparent")
+        header.grid(row=0, column=0, sticky="ew", padx=18, pady=(16, 10))
+        header.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(header, text="Konfiguracja Szybkich akcji", text_color=self.colors["text"], font=(FONT, 21, "bold"), anchor="w").grid(row=0, column=0, sticky="ew")
+        ctk.CTkLabel(header, text="W każdej zakładce dodawaj funkcje z prawej strony i przeciągaj aktywne narzędzia po lewej.", text_color=self.colors["muted"], font=(FONT, 9), anchor="w").grid(row=1, column=0, sticky="ew", pady=(2, 0))
+        self.quick_editor_count = ctk.CTkLabel(header, text="", text_color=self.colors["accent"], font=(FONT, 10, "bold"))
+        self.quick_editor_count.grid(row=0, column=1, rowspan=2, padx=8)
+        ctk.CTkButton(header, text="Dodaj wszystkie", width=120, command=self._add_all_quick_actions).grid(row=0, column=2, rowspan=2, padx=4)
+        ctk.CTkButton(header, text="Resetuj", width=90, command=self._reset_quick_actions, fg_color=self.colors["soft"], text_color=self.colors["text"], border_width=1, border_color=self.colors["border"]).grid(row=0, column=3, rowspan=2, padx=4)
+        def close_editor() -> None:
+            self.quick_editor = None
+            self.quick_editor_frames = {}
+            window.destroy()
+
+        ctk.CTkButton(header, text="Zamknij", width=90, command=close_editor).grid(row=0, column=4, rowspan=2, padx=(4, 0))
+        tabs = ctk.CTkTabview(window, fg_color=self.colors["card"], segmented_button_fg_color=self.colors["soft"], segmented_button_selected_color=self.colors["accent"], segmented_button_selected_hover_color=self.colors["accent_hover"], border_width=1, border_color=self.colors["border"], corner_radius=8)
+        tabs.grid(row=1, column=0, sticky="nsew", padx=18, pady=(0, 18))
+        self.quick_editor_frames = {}
+        for category in QUICK_CATEGORIES:
+            tab = tabs.add(category)
+            tab.grid_columnconfigure((0, 1), weight=1, uniform="editor")
+            tab.grid_rowconfigure(1, weight=1)
+            ctk.CTkLabel(tab, text="Aktywne w panelu", text_color=self.colors["text"], font=(FONT, 12, "bold"), anchor="w").grid(row=0, column=0, sticky="ew", padx=(8, 5), pady=(8, 4))
+            ctk.CTkLabel(tab, text="Dostępne narzędzia", text_color=self.colors["text"], font=(FONT, 12, "bold"), anchor="w").grid(row=0, column=1, sticky="ew", padx=(5, 8), pady=(8, 4))
+            selected = ctk.CTkScrollableFrame(tab, fg_color=self.colors["soft"], corner_radius=7)
+            selected.grid(row=1, column=0, sticky="nsew", padx=(8, 5), pady=(0, 8))
+            available = ctk.CTkScrollableFrame(tab, fg_color=self.colors["soft"], corner_radius=7)
+            available.grid(row=1, column=1, sticky="nsew", padx=(5, 8), pady=(0, 8))
+            self.quick_editor_frames[category] = (selected, available)
+        window.protocol("WM_DELETE_WINDOW", close_editor)
+        self._refresh_quick_editor()
+
+    def _refresh_quick_editor(self) -> None:
+        config = self._quick_config()
+        definitions = self._tool_definitions()
+        self.quick_drag_widgets_by_category = {}
+        if self.quick_editor_count is not None and self.quick_editor_count.winfo_exists():
+            self.quick_editor_count.configure(text=f"{len(self._quick_ids())}/{QUICK_LIMIT}")
+        for category, frames in self.quick_editor_frames.items():
+            selected_frame, available_frame = frames
+            if not selected_frame.winfo_exists():
+                continue
+            for frame in frames:
+                for child in frame.winfo_children():
+                    child.destroy()
+            self.quick_drag_widgets_by_category[category] = []
+            selected_ids = config[category]
+            if not selected_ids:
+                ctk.CTkLabel(selected_frame, text="Przeciągnij lub dodaj narzędzie z prawej strony.", text_color=self.colors["muted"], font=(FONT, 9), wraplength=330).pack(fill=tk.X, padx=12, pady=24)
+            for index, tool_id in enumerate(selected_ids):
+                definition = definitions[tool_id]
+                row = ctk.CTkFrame(selected_frame, fg_color=self.colors["card"], border_width=1, border_color=self.colors["border"], corner_radius=7)
+                row.pack(fill=tk.X, padx=4, pady=4)
+                row.grid_columnconfigure(1, weight=1)
+                handle = ctk.CTkLabel(row, text="↕", width=30, text_color=self.colors["muted"], font=(FONT, 17), cursor="fleur")
+                handle.grid(row=0, column=0, rowspan=2, padx=(5, 2))
+                handle.bind("<ButtonPress-1>", lambda _event, item=tool_id, cat=category: self._start_quick_drag(item, cat))
+                handle.bind("<ButtonRelease-1>", self._finish_quick_drag)
+                ctk.CTkLabel(row, text=definition["title"], text_color=self.colors["text"], font=(FONT, 10, "bold"), anchor="w").grid(row=0, column=1, sticky="ew", pady=(7, 1))
+                ctk.CTkLabel(row, text=definition["text"], text_color=self.colors["muted"], font=(FONT, 8), anchor="w").grid(row=1, column=1, sticky="ew", pady=(0, 7))
+                ctk.CTkButton(row, text="↑", width=28, height=27, command=lambda item=tool_id, cat=category: self._move_quick(item, -1, cat), state="disabled" if index == 0 else "normal").grid(row=0, column=2, rowspan=2, padx=2)
+                ctk.CTkButton(row, text="↓", width=28, height=27, command=lambda item=tool_id, cat=category: self._move_quick(item, 1, cat), state="disabled" if index == len(selected_ids) - 1 else "normal").grid(row=0, column=3, rowspan=2, padx=2)
+                ctk.CTkButton(row, text="×", width=28, height=27, command=lambda item=tool_id: self._remove_quick_action(item), fg_color=self.colors["red"]).grid(row=0, column=4, rowspan=2, padx=(2, 7))
+                self.quick_drag_widgets_by_category[category].append((tool_id, row))
+            for tool_id, definition in definitions.items():
+                if definition["category"] != category:
+                    continue
+                used = tool_id in selected_ids
+                row = ctk.CTkFrame(available_frame, fg_color=self.colors["card"] if not used else self.colors["border"], corner_radius=7)
+                row.pack(fill=tk.X, padx=4, pady=4)
+                row.grid_columnconfigure(0, weight=1)
+                ctk.CTkLabel(row, text=definition["title"], text_color=self.colors["muted"] if used else self.colors["text"], font=(FONT, 10, "bold"), anchor="w").grid(row=0, column=0, sticky="ew", padx=9, pady=(7, 1))
+                ctk.CTkLabel(row, text=definition["text"], text_color=self.colors["muted"], font=(FONT, 8), anchor="w").grid(row=1, column=0, sticky="ew", padx=9, pady=(0, 7))
+                ctk.CTkButton(row, text="Dodano" if used else "+", width=58 if used else 32, height=28, state="disabled" if used else "normal", command=lambda item=tool_id: self._add_quick_action(item), fg_color=definition["color"]).grid(row=0, column=1, rowspan=2, padx=8)
+
+    def _refresh_quick_views(self) -> None:
+        self._render_quick_tabs()
+        if self.quick_editor is not None:
+            try:
+                if self.quick_editor.winfo_exists():
+                    self._refresh_quick_editor()
+            except Exception:
+                self.quick_editor = None
 
     def _add_quick_action(self, tool_id: str) -> None:
-        items = self._quick_ids()
-        if tool_id in items:
+        config = self._quick_config()
+        definitions = self._tool_definitions()
+        if tool_id in self._quick_ids():
             return
-        if len(items) >= 8:
-            messagebox.showwarning("Szybkie akcje", "Panel zawiera już maksymalnie 8 narzędzi.", parent=self)
+        if len(self._quick_ids()) >= QUICK_LIMIT:
+            messagebox.showwarning("Szybkie akcje", f"Panel zawiera już maksymalnie {QUICK_LIMIT} narzędzia.", parent=self.quick_editor or self)
             return
-        items.append(tool_id)
-        self._save_quick_ids(items)
-        self._refresh_quick_selected()
+        category = definitions[tool_id]["category"]
+        config[category].append(tool_id)
+        self._save_quick_config(config)
+        self._refresh_quick_views()
 
     def _remove_quick_action(self, tool_id: str) -> None:
-        self._save_quick_ids([item for item in self._quick_ids() if item != tool_id])
-        self._refresh_quick_selected()
+        config = self._quick_config()
+        for category in QUICK_CATEGORIES:
+            config[category] = [item for item in config[category] if item != tool_id]
+        self._save_quick_config(config)
+        self._refresh_quick_views()
 
-    def _move_quick(self, tool_id: str, direction: int) -> None:
-        items = self._quick_ids()
+    def _move_quick(self, tool_id: str, direction: int, category: str | None = None) -> None:
+        config = self._quick_config()
+        category = category or self._tool_definitions()[tool_id]["category"]
+        items = config[category]
         index = items.index(tool_id)
         target = max(0, min(len(items) - 1, index + direction))
         if target != index:
             items.insert(target, items.pop(index))
-            self._save_quick_ids(items)
-            self._refresh_quick_selected()
+            self._save_quick_config(config)
+            self._refresh_quick_views()
 
-    def _start_quick_drag(self, tool_id: str) -> None:
+    def _start_quick_drag(self, tool_id: str, category: str) -> None:
         self.quick_drag_id = tool_id
+        self.quick_drag_category = category
 
     def _finish_quick_drag(self, event) -> None:
         tool_id = self.quick_drag_id
+        category = self.quick_drag_category
         self.quick_drag_id = None
-        if not tool_id:
+        self.quick_drag_category = None
+        if not tool_id or not category:
             return
-        target = len(self.quick_drag_widgets) - 1
-        for index, (_item, widget) in enumerate(self.quick_drag_widgets):
+        widgets = self.quick_drag_widgets_by_category.get(category, [])
+        target = max(0, len(widgets) - 1)
+        for index, (_item, widget) in enumerate(widgets):
             if event.y_root < widget.winfo_rooty() + widget.winfo_height() / 2:
                 target = index
                 break
-        items = self._quick_ids()
+        config = self._quick_config()
+        items = config[category]
         items.insert(target, items.pop(items.index(tool_id)))
-        self._save_quick_ids(items)
-        self._refresh_quick_selected()
+        self._save_quick_config(config)
+        self._refresh_quick_views()
 
     def _reset_quick_actions(self) -> None:
-        self._save_quick_ids(["copy", "compare", "hash", "media", "network", "windows_logs"])
-        self._refresh_quick_selected()
+        self._save_quick_config(self._default_quick_config())
+        self._refresh_quick_views()
+
+    def _add_all_quick_actions(self) -> None:
+        definitions = self._tool_definitions()
+        config = {category: [tool_id for tool_id, definition in definitions.items() if definition["category"] == category] for category in QUICK_CATEGORIES}
+        self._save_quick_config(config)
+        self._refresh_quick_views()
+
+    def _attach_tooltip(self, widget, text: str) -> None:
+        state = {"window": None}
+        def show(_event=None):
+            if state["window"] is not None:
+                return
+            tip = tk.Toplevel(self)
+            tip.overrideredirect(True)
+            tip.attributes("-topmost", True)
+            tip.geometry(f"+{widget.winfo_rootx()}+{widget.winfo_rooty() + widget.winfo_height() + 4}")
+            tk.Label(tip, text=text, bg="#111827", fg="#ffffff", padx=8, pady=4, font=(FONT, 9)).pack()
+            state["window"] = tip
+        def hide(_event=None):
+            if state["window"] is not None:
+                state["window"].destroy()
+                state["window"] = None
+        widget.bind("<Enter>", show, add="+")
+        widget.bind("<Leave>", hide, add="+")
 
     def _build_quick_panel(self, parent, detached: bool = False) -> None:
         self._build_quick_workspace(parent, detached=detached)
@@ -514,7 +707,7 @@ class EvidLockLightApp(ctk.CTk):
         frame.grid(row=0, column=0, sticky="nsew")
         parent.grid_rowconfigure(0, weight=1)
         definitions = self._tool_definitions()
-        for category in ("Dane i integralność", "Nośniki i raporty", "Network i pamięć", "System Windows"):
+        for category in QUICK_CATEGORIES:
             ctk.CTkLabel(frame, text=category, text_color=self.colors["text"], font=(FONT, 15, "bold"), anchor="w").pack(fill=tk.X, pady=(12, 8))
             for definition in definitions.values():
                 if definition["category"] == category:

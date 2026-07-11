@@ -17,19 +17,40 @@ except Exception:
 
 
 class DropZone(ctk.CTkFrame):
-    def __init__(self, parent, app, colors: dict[str, str], paths: list[str]) -> None:
+    def __init__(self, parent, app, colors: dict[str, str], paths: list[str], large: bool = False) -> None:
         super().__init__(parent, fg_color=colors["card"], border_width=1, border_color=colors["border"], corner_radius=8)
         self.app = app
         self.colors = colors
         self.paths = paths
+        self.large = large
         self.grid_columnconfigure(0, weight=1)
+        if large:
+            self.configure(height=154)
+            self.grid_propagate(False)
+            self.grid_rowconfigure(1, weight=1)
 
-        title = ctk.CTkLabel(self, text="Przeciągnij pliki lub katalogi tutaj", text_color=colors["text"], font=("Segoe UI", 12, "bold"), anchor="w")
-        title.grid(row=0, column=0, sticky="ew", padx=14, pady=(10, 2))
-        self.status = ctk.CTkLabel(self, text="", text_color=colors["muted"], font=("Segoe UI", 9), anchor="w")
-        self.status.grid(row=1, column=0, sticky="ew", padx=14, pady=(0, 9))
+        title = ctk.CTkLabel(
+            self,
+            text="Przeciągnij pliki lub katalogi tutaj",
+            text_color=colors["text"],
+            font=("Segoe UI", 17 if large else 12, "bold"),
+            anchor="center" if large else "w",
+        )
+        title.grid(row=0, column=0, sticky="ew", padx=14, pady=((22, 3) if large else (10, 2)))
+        if large:
+            hint = ctk.CTkLabel(
+                self,
+                text="Elementy zostaną przekazane do wybranego narzędzia. Duplikaty nie są dodawane.",
+                text_color=colors["muted"],
+                font=("Segoe UI", 10),
+                anchor="center",
+            )
+            hint.grid(row=1, column=0, sticky="new", padx=14)
+            self._enable_drop(hint)
+        self.status = ctk.CTkLabel(self, text="", text_color=colors["muted"], font=("Segoe UI", 9), anchor="center" if large else "w")
+        self.status.grid(row=2 if large else 1, column=0, sticky="ew", padx=14, pady=((2, 12) if large else (0, 9)))
         buttons = ctk.CTkFrame(self, fg_color="transparent")
-        buttons.grid(row=0, column=1, rowspan=2, padx=10, pady=8)
+        buttons.grid(row=0, column=1, rowspan=3 if large else 2, padx=12, pady=12)
         ctk.CTkButton(buttons, text="Pliki", width=72, height=30, command=self._choose_files).pack(side=tk.LEFT, padx=(0, 5))
         ctk.CTkButton(buttons, text="Katalog", width=82, height=30, command=self._choose_directory).pack(side=tk.LEFT, padx=(0, 5))
         ctk.CTkButton(buttons, text="Wyczyść", width=82, height=30, command=self.clear, fg_color=colors["soft"], text_color=colors["text"], border_width=1, border_color=colors["border"]).pack(side=tk.LEFT)

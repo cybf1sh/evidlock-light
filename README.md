@@ -11,13 +11,16 @@ EvidLock Light to samodzielna, modułowa aplikacja do codziennej pracy techniczn
 - logika w małych modułach usługowych,
 - WinAPI tam, gdzie Windows udostępnia dane systemowe,
 - odpinane panele robocze jak w EvidLockV2,
-- centralny panel Szybkich akcji z przeciąganiem, zmianą kolejności i tematyczną biblioteką narzędzi,
+- centralny panel Szybkich akcji z logo EvidLockV2, zakładkami tematycznymi i konfiguracją pod ikoną koła zębatego,
+- do 32 aktywnych narzędzi, z przeciąganiem i zmianą kolejności wewnątrz kategorii,
 - przeciąganie plików i katalogów z kontrolą duplikatów,
 - bez dashboardu sprawy, kółka integralności, numeru sprawy i OCR,
 - prosta dokumentacja tekstowa z wyszukiwarką,
 - tryb administratora dostępny z GUI i CLI.
 
 ## Moduły
+
+Główny ekran pokazuje tylko aktywne narzędzia w czterech zakładkach: `Dane i integralność`, `Nośniki i raporty`, `Sieć i pamięć` oraz `Windows i system`. Dodawanie, usuwanie i kolejność narzędzi są dostępne w osobnym konfiguratorze otwieranym ikoną koła zębatego. Nad panelem znajduje się duża strefa przeciągania plików i katalogów.
 
 - Nośniki: pełne okno dysków, lekkie ikony USB/lokalny/sieciowy/optyczny/RAM jak w EvidLockV2, zajętość oraz raport PDF/JSON.
 - Hash SHA-256: pliki, katalogi, manifest JSON/CSV, weryfikacja manifestu.

@@ -2,6 +2,11 @@
 
 ## 2026-07-12 - samodzielne repo i pełne moduły Windows
 
+- Dodano logo tarczy i kłódki o geometrii zgodnej z EvidLockV2.
+- Skórka `Black` korzysta z żółto-czarnej palety EvidLockV2, włącznie z wyglądem bocznego menu i neutralnych przycisków.
+- Przebudowano główny panel Szybkich akcji na cztery zakładki tematyczne z limitem 32 aktywnych narzędzi.
+- Główny panel pokazuje wyłącznie bieżące narzędzia; biblioteka, dodawanie, usuwanie i przesuwanie są dostępne pod ikoną koła zębatego.
+- Dodano dużą strefę przeciągania plików i katalogów nad Szybkimi akcjami.
 - Przeniesiono EvidLock Light do całkowicie osobnego repozytorium z własnym `.venv`, `requirements.txt`, buildem i backupem.
 - Dodano Drag and Drop plików i katalogów przez `tkinterdnd2`.
 - Powtórne dodanie tego samego pliku lub katalogu pokazuje komunikat i nie tworzy duplikatu.

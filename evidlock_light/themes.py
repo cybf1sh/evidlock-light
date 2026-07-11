@@ -104,20 +104,30 @@ def palette(skin: str) -> dict[str, str]:
             "bg": "#eef8f1", "card": "#ffffff", "soft": "#e3f3e8",
             "border": "#b7d7c0", "text": "#102416", "muted": "#4f6b58",
             "sidebar": "#123c24", "sidebar_text": "#f0fdf4",
-            "sidebar_muted": "#bbf7d0", "brand": "#86efac",
+            "sidebar_muted": "#bbf7d0", "brand": "#86efac", "logo_fill": "#e8f8ee",
             "nav_hover": "#1c5634", "accent": "#15803d", "accent_hover": "#166534",
             "green": "#16a34a", "red": "#dc2626", "purple": "#6d28d9",
             "teal": "#0f766e", "console_bg": "#0c2415", "console_text": "#dcfce7",
         }
     if skin == "black" or (skin == "system" and system_uses_dark_mode()):
-        accent = "#8a6500" if skin == "black" else "#2563eb"
+        if skin == "black":
+            return {
+                "bg": "#fde047", "card": "#fffdf0", "soft": "#fff7c2",
+                "border": "#d4a900", "text": "#111827", "muted": "#4b5563",
+                "sidebar": "#050505", "sidebar_text": "#111827",
+                "sidebar_muted": "#fde68a", "brand": "#facc15", "logo_fill": "#111827",
+                "nav_hover": "#242424", "accent": "#111827", "accent_hover": "#000000",
+                "green": "#15803d", "red": "#dc2626", "purple": "#6d28d9",
+                "teal": "#0f766e", "console_bg": "#fffef2", "console_text": "#111827",
+            }
+        accent = "#2563eb"
         return {
             "bg": "#101214", "card": "#181b1f", "soft": "#20242a",
             "border": "#343a40", "text": "#f5f7fa", "muted": "#aeb6c2",
             "sidebar": "#050607", "sidebar_text": "#f5f7fa",
-            "sidebar_muted": "#9aa4b2", "brand": "#f5c542" if skin == "black" else "#60a5fa",
+            "sidebar_muted": "#9aa4b2", "brand": "#60a5fa", "logo_fill": "#111827",
             "nav_hover": "#24282e", "accent": accent,
-            "accent_hover": "#6f5100" if skin == "black" else "#1d4ed8",
+            "accent_hover": "#1d4ed8",
             "green": "#15803d", "red": "#b91c1c", "purple": "#6d28d9",
             "teal": "#0f766e", "console_bg": "#050607", "console_text": "#f5f7fa",
         }
@@ -125,7 +135,7 @@ def palette(skin: str) -> dict[str, str]:
         "bg": "#f3f3f3", "card": "#ffffff", "soft": "#f5f5f5",
         "border": "#c7c7c7", "text": "#1f1f1f", "muted": "#505050",
         "sidebar": "#202020", "sidebar_text": "#f5f5f5",
-        "sidebar_muted": "#b7b7b7", "brand": "#60a5fa",
+        "sidebar_muted": "#b7b7b7", "brand": "#60a5fa", "logo_fill": "#e8f3ff",
         "nav_hover": "#343434", "accent": "#0078d4", "accent_hover": "#005a9e",
         "green": "#107c10", "red": "#c42b1c", "purple": "#5c2d91",
         "teal": "#038387", "console_bg": "#0b1020", "console_text": "#e5edf7",
