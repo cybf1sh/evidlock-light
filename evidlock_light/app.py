@@ -42,6 +42,7 @@ from .ui.pdf_tools_dialog import PdfToolsDialog
 from .ui.logo import EvidLockLogo
 from .ui.progress import ProgressDialog
 from .ui.report_window import ReportWindow
+from .ui.system_report_dialog import SystemReportDialog
 from .ui.registry_dialog import RegistryExportDialog
 from .ui.readonly_dialog import ReadOnlyDialog
 from .ui.windows_logs_dialog import WindowsLogsDialog
@@ -105,6 +106,7 @@ class EvidLockLightApp(ctk.CTk):
         self.quick_editor: ctk.CTkToplevel | None = None
         self.quick_editor_count: ctk.CTkLabel | None = None
         self.report_window: ReportWindow | None = None
+        self.system_report_dialog: SystemReportDialog | None = None
         self.media_dialog: MediaDialog | None = None
         self.registry_dialog: RegistryExportDialog | None = None
         self.windows_logs_dialog: WindowsLogsDialog | None = None
@@ -498,7 +500,7 @@ class EvidLockLightApp(ctk.CTk):
             self.media_dialog, self.registry_dialog, self.windows_logs_dialog, self.readonly_dialog,
             self.memory_manager_dialog, self.archive_dialog, self.pdf_tools_dialog,
             self.one_click_dialog, self.capture_dialog,
-            self.network_scanner_dialog,
+            self.network_scanner_dialog, self.system_report_dialog,
         ):
             if window is not None and window not in windows:
                 windows.append(window)
@@ -588,7 +590,7 @@ class EvidLockLightApp(ctk.CTk):
             "pdf_tools": {"title": "Narzędzia PDF", "text": "Tworzenie bez nagłówka i szyfrowanie PDF AES-256.", "category": "Nośniki i raporty", "color": self.colors["purple"], "command": self._open_pdf_tools},
             "network": {"title": "Zaawansowany skaner sieci", "text": "Host lub podsieć, usługi, typ urządzenia i akcje zdalne.", "category": "Sieć i pamięć", "color": self.colors["teal"], "command": self._open_network_scanner},
             "memory": {"title": "Pamięć RAM", "text": "WinPmem, Volatility 3 i manager pamięci.", "category": "Sieć i pamięć", "color": self.colors["purple"], "command": lambda: self.show_page("Pamięć")},
-            "system_report": {"title": "Pełny raport systemowy", "text": "Pełny raport znany z EvidLockV2: Windows, numery seryjne, sprzęt, sieć, programy i artefakty do PDF/CSV/JSON/TXT.", "category": "System", "color": self.colors["accent"], "command": lambda: self._run_progress("Pełny raport systemowy", lambda progress: system_report.generate_full_report(progress=progress), open_pdf=True)},
+            "system_report": {"title": "Pełny raport systemowy", "text": "Przegląd danych znany z EvidLockV2 oraz generowanie PDF i TXT.", "category": "System", "color": self.colors["accent"], "command": self._open_system_report_dialog, "action_label": "Przeglądaj"},
             "registry": {"title": "Eksport rejestru", "text": "Pełne okno hive, dane i raporty rejestru.", "category": "System", "color": self.colors["red"], "command": self._open_registry_dialog},
             "windows_logs": {"title": "Logi Windows", "text": "Pełne okno opcji, EVTX i raportów logów.", "category": "System", "color": self.colors["red"], "command": self._open_windows_logs_dialog},
             "journal": {"title": "Dziennik Light", "text": "Podgląd i eksport operacji programu.", "category": "System", "color": self.colors["accent"], "command": lambda: self.show_page("Dziennik")},
@@ -712,7 +714,7 @@ class EvidLockLightApp(ctk.CTk):
                 card.grid(row=index // 2, column=index % 2, sticky="ew", padx=5, pady=5)
                 card.pack_propagate(False)
                 ctk.CTkFrame(card, width=5, fg_color=definition["color"], corner_radius=3).pack(side=tk.LEFT, fill=tk.Y, pady=6)
-                ctk.CTkButton(card, text="Uruchom", width=86, height=30, command=definition["command"], fg_color=definition["color"]).pack(side=tk.RIGHT, padx=10)
+                ctk.CTkButton(card, text=definition.get("action_label", "Uruchom"), width=96, height=30, command=definition["command"], fg_color=definition["color"]).pack(side=tk.RIGHT, padx=10)
                 if definition.get("icon"):
                     ctk.CTkLabel(card, text="", image=self._action_icon(definition["icon"], 30), width=36).pack(side=tk.LEFT, padx=(8, 0))
                 body = ctk.CTkFrame(card, fg_color="transparent")
@@ -927,7 +929,7 @@ class EvidLockLightApp(ctk.CTk):
             tile.grid(row=index // 2, column=index % 2, sticky="ew", padx=5, pady=5)
             tile.pack_propagate(False)
             ctk.CTkFrame(tile, width=4, fg_color=definition["color"], corner_radius=2).pack(side=tk.LEFT, fill=tk.Y, pady=5)
-            ctk.CTkButton(tile, text="Otwórz", width=76, height=30, command=definition["command"], fg_color=definition["color"]).pack(side=tk.RIGHT, padx=9)
+            ctk.CTkButton(tile, text=definition.get("action_label", "Otwórz"), width=88, height=30, command=definition["command"], fg_color=definition["color"]).pack(side=tk.RIGHT, padx=9)
             if definition.get("icon"):
                 ctk.CTkLabel(tile, text="", image=self._action_icon(definition["icon"], 28), width=34).pack(side=tk.LEFT, padx=(8, 0))
             body = ctk.CTkFrame(tile, fg_color="transparent")
@@ -960,6 +962,22 @@ class EvidLockLightApp(ctk.CTk):
             return
         self.media_dialog = MediaDialog(self, self.colors, on_result=lambda result: self._write(result, "Raport nośników"))
         self.detached_windows.append(self.media_dialog)
+
+    def _open_system_report_dialog(self) -> None:
+        if self.system_report_dialog is not None:
+            try:
+                if self.system_report_dialog.winfo_exists():
+                    present_toplevel(self.system_report_dialog, self)
+                    return
+            except Exception:
+                pass
+        self.system_report_dialog = SystemReportDialog(
+            self,
+            self.colors,
+            on_result=lambda result: self._write(result, "Pełny raport systemowy"),
+            on_close=lambda: setattr(self, "system_report_dialog", None),
+        )
+        self.detached_windows.append(self.system_report_dialog)
 
     def _open_network_scanner(self) -> None:
         if self.network_scanner_dialog is not None:
@@ -1016,7 +1034,7 @@ class EvidLockLightApp(ctk.CTk):
 
     def _page_system(self) -> None:
         actions = self._layout_with_output()
-        self._action_card(actions, "Pełny raport systemowy", "Windows, sprzęt, sieć, programy, sterowniki, procesy, artefakty śledcze, certyfikaty i USB do PDF/CSV/JSON/TXT.", lambda: self._run_progress("Pełny raport systemowy", lambda progress: system_report.generate_full_report(progress=progress), open_pdf=True), self.colors["accent"])
+        self._action_card(actions, "Pełny raport systemowy", "Przegląd danych oraz generowanie PDF i TXT.", self._open_system_report_dialog, self.colors["accent"])
         self._detach_button(actions, "Narzędzia systemowe", self._build_tools_panel)
         self._action_card(actions, "Eksport rejestru Windows", "Otwórz pełne okno hive, gałęzi i raportów wieloformatowych.", self._open_registry_dialog)
         self._action_card(actions, "Eksport logów Windows", "Otwórz opcje zakresu, dzienników, EVTX i raportów.", self._open_windows_logs_dialog)

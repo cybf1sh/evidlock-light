@@ -97,23 +97,42 @@ def collect_system_data(progress=None):
     step(.93,"Zapisywanie raportów")
     return data
 
-def generate_full_report(output_dir=None, progress=None):
-    sections=collect_system_data(progress); folder=Path(output_dir) if output_dir else REPORTS_DIR/"System"; folder.mkdir(parents=True,exist_ok=True)
+def format_sections_text(sections):
+    return "EVIDLOCK LIGHT - PEŁNY RAPORT SYSTEMOWY\n"+"="*60+"\n\n"+"\n\n".join(f"[{s}]\n"+"\n".join(f"{k}: {v}" for k,v in r) for s,r in sections)
+
+def write_system_report(sections, output_dir=None, formats=("pdf","txt","csv","json"), progress=None):
+    folder=Path(output_dir) if output_dir else REPORTS_DIR/"System"; folder.mkdir(parents=True,exist_ok=True)
     base=folder/f"raport_systemowy_{dt.datetime.now():%Y%m%d_%H%M%S}"; payload={s:dict(r) for s,r in sections}
-    paths={ext:base.with_suffix("."+ext) for ext in ("pdf","csv","json","txt")}
-    paths["json"].write_text(json.dumps(payload,ensure_ascii=False,indent=2),encoding="utf-8")
-    paths["txt"].write_text("EVIDLOCK LIGHT - PEŁNY RAPORT SYSTEMOWY\n"+"="*60+"\n\n"+"\n\n".join(f"[{s}]\n"+"\n".join(f"{k}: {v}" for k,v in r) for s,r in sections),encoding="utf-8")
-    with paths["csv"].open("w",encoding="utf-8-sig",newline="") as f:
+    paths={ext:base.with_suffix("."+ext) for ext in formats}
+    if "json" in paths: paths["json"].write_text(json.dumps(payload,ensure_ascii=False,indent=2),encoding="utf-8")
+    if "txt" in paths: paths["txt"].write_text(format_sections_text(sections),encoding="utf-8-sig")
+    if "csv" in paths:
+      with paths["csv"].open("w",encoding="utf-8-sig",newline="") as f:
         w=csv.writer(f,delimiter=";"); w.writerow(["Sekcja","Pole","Wartość"])
         for s,rows in sections:
             for k,v in rows: w.writerow([s,k,v])
+    # Długie wyniki PowerShell nie mogą być komórkami tabeli ReportLab: pojedynczy
+    # wiersz tabeli nie dzieli się między strony. Akapity dzielą się automatycznie.
     pdf_sections=[]
-    for i,(s,rows) in enumerate(sections):
-        split_rows=[]
+    for section_index,(section_title,rows) in enumerate(sections):
+        first=True
         for key,value in rows:
             lines=str(value).splitlines() or [NO_DATA]
-            for part in range(0,len(lines),30): split_rows.append((key if part==0 else f"{key} (ciąg dalszy)","\n".join(lines[part:part+30])))
-        pdf_sections.append({"title":s,"rows":split_rows,"page_break":i>0})
-    reports.write_professional_pdf("EvidLock Light - pełny raport systemowy",pdf_sections,paths["pdf"],"Lokalny raport komputera i Windows znany z EvidLockV2.",{"Komputer":socket.gethostname(),"Użytkownik":getpass.getuser(),"Administrator":"Tak" if is_admin() else "Nie"})
+            chunks=[]; current=[]; current_chars=0
+            for line in lines:
+                if current and (len(current)>=16 or current_chars+len(line)>2400):
+                    chunks.append("\n".join(current)); current=[]; current_chars=0
+                current.append(line); current_chars+=len(line)+1
+            if current: chunks.append("\n".join(current))
+            for chunk_index,chunk in enumerate(chunks):
+                suffix="" if chunk_index==0 else " (ciąg dalszy)"
+                pdf_sections.append({"title":f"{section_title} — {key}{suffix}","text":chunk,"page_break":section_index>0 and first})
+                first=False
+    if "pdf" in paths:
+      reports.write_professional_pdf("EvidLock Light - pełny raport systemowy",pdf_sections,paths["pdf"],"Lokalny raport komputera i Windows znany z EvidLockV2.",{"Komputer":socket.gethostname(),"Użytkownik":getpass.getuser(),"Administrator":"Tak" if is_admin() else "Nie"})
     if progress: progress(100,"Raport gotowy")
     return {k:str(v) for k,v in paths.items()}|{"sections":len(sections)}
+
+def generate_full_report(output_dir=None, progress=None):
+    sections=collect_system_data(progress)
+    return write_system_report(sections,output_dir,progress=progress)
