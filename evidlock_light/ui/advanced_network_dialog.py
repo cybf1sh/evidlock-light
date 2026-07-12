@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import ipaddress
+import queue
 import threading
 import tkinter as tk
 from pathlib import Path
@@ -26,6 +27,7 @@ class AdvancedNetworkDialog(ManagedToplevel):
         self.result: dict | None = None
         self.hosts_by_ip: dict[str, dict] = {}
         self.export_folder: Path | None = None
+        self._event_queue: queue.Queue = queue.Queue()
         self.title("Zaawansowany skaner sieci TCP")
         self.geometry("1180x780")
         self.minsize(980, 680)
@@ -160,20 +162,50 @@ class AdvancedNetworkDialog(ManagedToplevel):
             ports = network.parse_ports(self.ports.get())
         except Exception as exc:
             messagebox.showerror("Porty TCP", str(exc), parent=self); return
+        timeout = float(self.timeout.get())
+        workers = int(self.workers.get())
+        include_offline = bool(self.include_offline.get())
         self.running = True; self.stop_event.clear(); self.result = None; self.hosts_by_ip.clear(); self.export_folder = None
+        while not self._event_queue.empty():
+            try:
+                self._event_queue.get_nowait()
+            except queue.Empty:
+                break
         for item in self.tree.get_children(): self.tree.delete(item)
         self.progress.set(0); self.status.configure(text="Przygotowanie skanu..."); self.summary.configure(text="Wyniki: 0")
         self.start_button.configure(state="disabled"); self.stop_button.configure(state="normal"); self.export_button.configure(state="disabled"); self.open_folder_button.configure(state="disabled")
         self._show_details(None)
 
-        def callback(value, text): self.after(0, lambda: self._progress(value, text))
+        def callback(value, text): self._event_queue.put(("progress", value, text))
+        def host_callback(host): self._event_queue.put(("host", host))
         def worker():
             try:
-                result = network.scan_network(target, ports, self.timeout.get(), int(self.workers.get()), self.include_offline.get(), callback, self.stop_event)
-                self.after(0, lambda: self._finish(result))
+                result = network.scan_network(
+                    target, ports, timeout, workers, include_offline,
+                    callback, self.stop_event, host_callback,
+                )
+                self._event_queue.put(("finish", result))
             except Exception as exc:
-                self.after(0, lambda error=exc: self._fail(error))
+                self._event_queue.put(("error", exc))
         threading.Thread(target=worker, daemon=True).start()
+        self._poll_events()
+
+    def _poll_events(self) -> None:
+        try:
+            while True:
+                event = self._event_queue.get_nowait()
+                if event[0] == "progress":
+                    self._progress(event[1], event[2])
+                elif event[0] == "host":
+                    self._add_host(event[1])
+                elif event[0] == "finish":
+                    self._finish(event[1])
+                elif event[0] == "error":
+                    self._fail(event[1])
+        except queue.Empty:
+            pass
+        if self.running:
+            self.after(40, self._poll_events)
 
     def _progress(self, value: float, text: str) -> None:
         self.progress.set(max(0, min(100, value)) / 100); self.status.configure(text=text)
@@ -187,13 +219,24 @@ class AdvancedNetworkDialog(ManagedToplevel):
         self.progress.set(1 if not result.get("cancelled") else self.progress.get())
         self.status.configure(text=f"Zakończono w {result['elapsed_seconds']} s" if not result.get("cancelled") else "Skan zatrzymany")
         for host in result.get("hosts", []):
-            ip = host["ip"]; self.hosts_by_ip[ip] = host
-            ports = ", ".join(str(item["port"]) for item in host.get("open_ports", [])) or "-"
-            self.tree.insert("", "end", iid=ip, values=(ip, host.get("computer_name") or "-", host.get("domain") or "-", host.get("device_type"), host.get("mac") or "-", ports))
+            self._add_host(host)
         self.summary.configure(text=f"Hosty online: {result['online']}  |  Wiersze: {len(result.get('hosts', []))}  |  Adresy: {result['addresses']}")
         self.export_button.configure(state="normal" if result.get("hosts") else "disabled")
         if self.tree.get_children(): self.tree.selection_set(self.tree.get_children()[0]); self._select_host()
         if self.on_result: self.on_result(result)
+
+    def _add_host(self, host: dict) -> None:
+        """Dodaje hosta do tabeli natychmiast po zakończeniu jego skanowania."""
+
+        ip = host["ip"]
+        self.hosts_by_ip[ip] = host
+        ports = ", ".join(str(item["port"]) for item in host.get("open_ports", [])) or "-"
+        values = (ip, host.get("computer_name") or "-", host.get("domain") or "-", host.get("device_type"), host.get("mac") or "-", ports)
+        if self.tree.exists(ip):
+            self.tree.item(ip, values=values)
+        else:
+            self.tree.insert("", "end", iid=ip, values=values)
+        self.summary.configure(text=f"Wykryto hostów: {len(self.hosts_by_ip)}  |  Online: {sum(1 for item in self.hosts_by_ip.values() if item.get('online'))}")
 
     def _fail(self, error: Exception) -> None:
         self.running = False; self.start_button.configure(state="normal"); self.stop_button.configure(state="disabled"); self.progress.configure(progress_color=self.colors["red"]); self.status.configure(text=f"Błąd: {error}")

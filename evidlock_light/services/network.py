@@ -170,14 +170,18 @@ def _scan_host(ip: str, ports: list[int], timeout: float, parallel_ports: bool, 
     }
 
 
-def scan_network(target: str, ports: list[int], timeout: float = 0.45, workers: int = 32, include_offline: bool = False, callback=None, stop_event=None) -> dict:
+def scan_network(target: str, ports: list[int], timeout: float = 0.45, workers: int = 32, include_offline: bool = False, callback=None, stop_event=None, host_callback=None) -> dict:
     addresses = _targets(target)
     timeout = max(0.1, min(5.0, float(timeout)))
     workers = max(1, min(128, int(workers)))
     started = time.perf_counter()
     results: list[dict] = []
     if len(addresses) == 1:
-        results.append(_scan_host(addresses[0], ports, timeout, True, stop_event))
+        result = _scan_host(addresses[0], ports, timeout, True, stop_event)
+        if include_offline or result["online"]:
+            results.append(result)
+            if host_callback:
+                host_callback(result)
         if callback: callback(100, f"Przeskanowano {addresses[0]}")
     else:
         with ThreadPoolExecutor(max_workers=min(workers, len(addresses))) as executor:
@@ -190,6 +194,8 @@ def scan_network(target: str, ports: list[int], timeout: float = 0.45, workers: 
                 result = future.result()
                 if include_offline or result["online"]:
                     results.append(result)
+                    if host_callback:
+                        host_callback(result)
                 if callback:
                     callback(completed / len(addresses) * 100, f"Host {completed}/{len(addresses)}: {result['ip']}")
     results.sort(key=lambda item: ipaddress.ip_address(item["ip"]))
