@@ -4,6 +4,7 @@
 
 - Pierwsza kopia Google Drive jest pełnym snapshotem 1:1 projektu.
 - Kolejne kopie zawierają kod, dokumentację, konfigurację, skrypty i artefakty wersji; dodano także `-ForceFull`.
+- Dodano automatyczne wykrywanie zamontowanego Google Drive z możliwością wymuszenia przez `-AutoDetect`.
 - Dodano `Build_EvidLock_Light.cmd`, pauzę po buildzie i czytelny komunikat okna przy błędzie uruchomienia skryptu.
 
 ## 2026-07-12 - potwierdzenie zamknięcia

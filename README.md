@@ -255,10 +255,22 @@ Skrypt sprawdza zależności, wynik PyInstallera, obecność pliku EXE i nie roz
 
 ## Kopia na Google Drive
 
-`backup_google_drive_light.ps1` korzysta z katalogu synchronizowanego przez Google Drive dla komputerów. Nie używa bezpośrednio API Google ani osobnego logowania.
+`backup_google_drive_light.ps1` automatycznie wykrywa zamontowany dysk Google Drive dla komputerów i zapisuje kopię do `EvidLockLight_Backup`. Sprawdzane są dyski z folderem `My Drive`/`Mój dysk`, etykieta woluminu DriveFS oraz typowe foldery profilu użytkownika. Skrypt nie używa bezpośrednio API Google ani osobnego logowania.
 
 ```powershell
 .\backup_google_drive_light.ps1
+```
+
+Automatyczne wykrywanie można wymusić również jawnie:
+
+```powershell
+.\backup_google_drive_light.ps1 -AutoDetect
+```
+
+Samą wykrytą ścieżkę można sprawdzić bez wykonywania kopii:
+
+```powershell
+.\backup_google_drive_light.ps1 -DetectOnly
 ```
 
 Tryb kopii:
@@ -269,7 +281,7 @@ Tryb kopii:
 - każda kopia trafia do osobnego katalogu z datą i milisekundami,
 - pełną kopię można wymusić przez `-ForceFull`.
 
-Jeżeli Google Drive korzysta z innej ścieżki, podaj ją jawnie:
+Jeżeli Google Drive nie jest zamontowany albo korzysta z innej ścieżki, skrypt zatrzyma się z komunikatem. Wtedy podaj ścieżkę jawnie:
 
 ```powershell
 .\backup_google_drive_light.ps1 -DestinationRoot "G:\My Drive\EvidLockLight_Backup"

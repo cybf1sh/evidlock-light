@@ -1,7 +1,9 @@
 param(
-    [string]$DestinationRoot = "$env:USERPROFILE\Google Drive\EvidLockLight_Backup",
+    [string]$DestinationRoot = "",
     [string]$ChangeName = "backup EvidLock Light",
     [string]$SourceRoot = "",
+    [switch]$AutoDetect,
+    [switch]$DetectOnly,
     [switch]$ForceFull
 )
 
@@ -12,7 +14,79 @@ $Root = if ([string]::IsNullOrWhiteSpace($SourceRoot)) {
     [IO.Path]::GetFullPath($SourceRoot)
 }
 $Root = $Root.TrimEnd('\')
+$destinationDetected = $false
+
+function Find-GoogleDriveRoot {
+    $candidates = @()
+    # Budujemy polską nazwę kodem znaku, aby działało również w Windows PowerShell 5.1.
+    $folderNames = @("My Drive", ("M" + [char]0x00F3 + "j dysk"))
+
+    # Google Drive for desktop najczęściej montuje się jako osobny dysk.
+    foreach ($drive in @(Get-PSDrive -PSProvider FileSystem)) {
+        $driveRoot = $drive.Root
+        foreach ($folderName in $folderNames) {
+            $candidate = Join-Path $driveRoot $folderName
+            if (Test-Path -LiteralPath $candidate -PathType Container) {
+                $candidates += $candidate
+            }
+        }
+        if (Test-Path -LiteralPath (Join-Path $driveRoot ".shortcut-targets-by-id") -PathType Container) {
+            $candidates += $driveRoot
+        }
+    }
+
+    # Etykieta woluminu jest dostępna dla części instalacji DriveFS.
+    try {
+        Get-Volume | Where-Object {
+            $_.DriveLetter -and $_.FileSystemLabel -match "Google\s*Drive|DriveFS"
+        } | ForEach-Object {
+            $candidates += "$($_.DriveLetter):\"
+        }
+    }
+    catch {
+        # Brak Get-Volume nie blokuje wyszukiwania po ścieżkach.
+    }
+
+    $profileCandidates = @(
+        (Join-Path $env:USERPROFILE "Google Drive"),
+        (Join-Path $env:USERPROFILE "GoogleDrive"),
+        (Join-Path $env:USERPROFILE "Google Drive\My Drive"),
+        (Join-Path $env:USERPROFILE ("Google Drive\M" + [char]0x00F3 + "j dysk"))
+    )
+    $candidates += $profileCandidates
+
+    foreach ($candidate in $candidates) {
+        if (-not (Test-Path -LiteralPath $candidate -PathType Container)) {
+            continue
+        }
+        $full = [IO.Path]::GetFullPath($candidate).TrimEnd('\')
+        foreach ($folderName in $folderNames) {
+            $nested = Join-Path $full $folderName
+            if (Test-Path -LiteralPath $nested -PathType Container) {
+                return [IO.Path]::GetFullPath($nested).TrimEnd('\')
+            }
+        }
+        return $full
+    }
+    return $null
+}
+
+if ($AutoDetect -or [string]::IsNullOrWhiteSpace($DestinationRoot)) {
+    $googleDriveRoot = Find-GoogleDriveRoot
+    if ([string]::IsNullOrWhiteSpace($googleDriveRoot)) {
+        throw "Nie wykryto dysku Google Drive. Uruchom Google Drive dla komputerów albo podaj -DestinationRoot, np. G:\My Drive\EvidLockLight_Backup."
+    }
+    $DestinationRoot = Join-Path $googleDriveRoot "EvidLockLight_Backup"
+    $destinationDetected = $true
+}
+
 $DestinationRoot = [IO.Path]::GetFullPath($DestinationRoot).TrimEnd('\')
+
+if ($DetectOnly) {
+    Write-Host "Wykryto Google Drive: $DestinationRoot"
+    exit 0
+}
+
 $StatePath = Join-Path $DestinationRoot ".evidlock_light_backup_state.json"
 $Stamp = Get-Date -Format "yyyyMMdd_HHmmss_fff"
 $Target = Join-Path $DestinationRoot "evidlock_light_$Stamp"
@@ -25,6 +99,10 @@ if (-not (Test-Path -LiteralPath $Root -PathType Container)) {
 }
 
 New-Item -ItemType Directory -Force -Path $Target | Out-Null
+
+if ($destinationDetected) {
+    Write-Host "Wykryto Google Drive: $DestinationRoot"
+}
 
 function Copy-BackupItem {
     param([Parameter(Mandatory = $true)][string]$Path)
@@ -80,6 +158,8 @@ $meta = [ordered]@{
     name = $ChangeName
     mode = $mode
     source = $Root
+    destination_root = $DestinationRoot
+    destination_detected = $destinationDetected
     created = (Get-Date).ToString("s")
     target = $Target
     first_full_copy = $firstBackup
