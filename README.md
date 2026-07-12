@@ -234,6 +234,10 @@ Można również uruchomić aplikację bezpośrednio:
 
 Podstawowe zależności to CustomTkinter, Pillow, ReportLab, OpenPyXL, tkinterdnd2, PyInstaller, pypdf, cryptography, pyzipper i py7zr.
 
+## Drugie stanowisko
+
+Pełna instrukcja przygotowania drugiego komputera znajduje się w [docs/SECOND_WORKSTATION.md](docs/SECOND_WORKSTATION.md). W skrócie: gotowy `EvidLockLight.exe` można uruchomić bez Pythona, a do pracy z kodem należy skopiować snapshot lokalnie, uruchomić `setup_dev.ps1`, a następnie `Uruchom_EvidLock_Light.cmd`. Build wykonuje `Build_EvidLock_Light.cmd`, natomiast backup Google Drive wykonuje `backup_google_drive_light.ps1`.
+
 ## Build
 
 Build tworzy aktualny plik EXE, zachowuje poprzedni oryginał i zapisuje kopię wydania w `releases`:
