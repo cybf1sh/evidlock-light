@@ -10,3 +10,4 @@ __pycache__/
 *.pyc
 *.exe
 *.exe.sha256
+evidlock light/
