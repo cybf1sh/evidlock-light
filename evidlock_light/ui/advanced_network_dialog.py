@@ -47,6 +47,7 @@ class AdvancedNetworkDialog(ManagedToplevel):
         self.target = tk.StringVar(value="127.0.0.1")
         self.profile = tk.StringVar(value="Szybki")
         self.ports = tk.StringVar(value=network.PORT_PROFILES["Szybki"])
+        self.scan_ports = tk.BooleanVar(value=True)
         self.timeout = tk.DoubleVar(value=.45)
         self.workers = tk.IntVar(value=32)
         self.include_offline = tk.BooleanVar(value=False)
@@ -56,17 +57,30 @@ class AdvancedNetworkDialog(ManagedToplevel):
         ctk.CTkLabel(settings, text="Adres / podsieć", text_color=colors["text"], font=("Segoe UI", 9, "bold")).grid(row=0, column=2, sticky="w", padx=7, pady=(10, 2))
         self.target_entry = ctk.CTkEntry(settings, textvariable=self.target, height=32)
         self.target_entry.grid(row=1, column=2, columnspan=2, sticky="ew", padx=8, pady=(0, 10))
+        self.subnet_octets = [tk.StringVar(value=value) for value in ("192", "168", "1", "0")]
+        self.subnet_prefix = tk.StringVar(value="24")
+        self.subnet_frame = ctk.CTkFrame(settings, fg_color="transparent")
+        self.subnet_frame.grid(row=1, column=2, columnspan=2, sticky="ew", padx=8, pady=(0, 10))
+        for index, variable in enumerate(self.subnet_octets):
+            ctk.CTkEntry(self.subnet_frame, textvariable=variable, width=42, height=32, justify="center").pack(side=tk.LEFT, fill=tk.X, expand=True)
+            if index < 3:
+                ctk.CTkLabel(self.subnet_frame, text=".", text_color=colors["text"], font=("Segoe UI", 13, "bold"), width=10).pack(side=tk.LEFT)
+        ctk.CTkLabel(self.subnet_frame, text="/", text_color=colors["text"], font=("Segoe UI", 13, "bold"), width=14).pack(side=tk.LEFT)
+        ctk.CTkEntry(self.subnet_frame, textvariable=self.subnet_prefix, width=38, height=32, justify="center").pack(side=tk.LEFT)
+        self.subnet_frame.grid_remove()
         ctk.CTkLabel(settings, text="Profil portów", text_color=colors["text"], font=("Segoe UI", 9, "bold")).grid(row=0, column=4, sticky="w", padx=7, pady=(10, 2))
         ctk.CTkOptionMenu(settings, values=list(network.PORT_PROFILES), variable=self.profile, command=self._profile_changed).grid(row=1, column=4, columnspan=2, sticky="ew", padx=(8, 12), pady=(0, 10))
 
         ctk.CTkLabel(settings, text="Porty TCP", text_color=colors["text"], font=("Segoe UI", 9, "bold")).grid(row=2, column=0, sticky="w", padx=(12, 7), pady=(0, 2))
-        ctk.CTkEntry(settings, textvariable=self.ports, height=32).grid(row=3, column=0, columnspan=3, sticky="ew", padx=(12, 8), pady=(0, 12))
+        self.ports_entry = ctk.CTkEntry(settings, textvariable=self.ports, height=32)
+        self.ports_entry.grid(row=3, column=0, columnspan=3, sticky="ew", padx=(12, 8), pady=(0, 12))
         self.timeout_label = ctk.CTkLabel(settings, text="Timeout: 0,45 s", text_color=colors["text"], font=("Segoe UI", 9, "bold"))
         self.timeout_label.grid(row=2, column=3, sticky="w", padx=8)
         ctk.CTkSlider(settings, from_=0.1, to=2.0, number_of_steps=19, variable=self.timeout, command=self._sliders_changed).grid(row=3, column=3, sticky="ew", padx=8)
         self.workers_label = ctk.CTkLabel(settings, text="Równoległość: 32", text_color=colors["text"], font=("Segoe UI", 9, "bold"))
         self.workers_label.grid(row=2, column=4, sticky="w", padx=8)
         ctk.CTkSlider(settings, from_=1, to=64, number_of_steps=63, variable=self.workers, command=self._sliders_changed).grid(row=3, column=4, sticky="ew", padx=8)
+        ctk.CTkCheckBox(settings, text="Skanuj otwarte porty", variable=self.scan_ports, command=self._toggle_port_scan, text_color=colors["text"]).grid(row=2, column=5, sticky="w", padx=(8, 12))
         ctk.CTkCheckBox(settings, text="Pokaż hosty bez odpowiedzi", variable=self.include_offline, text_color=colors["text"]).grid(row=3, column=5, sticky="w", padx=(8, 12))
 
         command_bar = ctk.CTkFrame(self, fg_color="transparent")
@@ -102,6 +116,7 @@ class AdvancedNetworkDialog(ManagedToplevel):
         scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.tree.yview)
         scrollbar.grid(row=1, column=1, sticky="ns", padx=(0, 10), pady=(0, 10)); self.tree.configure(yscrollcommand=scrollbar.set)
         self.tree.bind("<<TreeviewSelect>>", self._select_host)
+        self.tree.bind("<Button-3>", self._context_menu)
 
         details = ctk.CTkFrame(workspace, fg_color=colors["card"], border_width=1, border_color=colors["border"], corner_radius=8)
         details.grid(row=0, column=1, sticky="nsew", padx=(8, 0))
@@ -141,7 +156,28 @@ class AdvancedNetworkDialog(ManagedToplevel):
         style.map("Network.Treeview", background=[("selected", self.colors["accent"])], foreground=[("selected", "#ffffff")])
 
     def _mode_changed(self, value: str) -> None:
-        self.target.set("192.168.1.0/24" if value == "Podsieć CIDR" else "127.0.0.1")
+        if value == "Podsieć CIDR":
+            self.target_entry.grid_remove()
+            self.subnet_frame.grid()
+        else:
+            self.subnet_frame.grid_remove()
+            self.target_entry.grid()
+            self.target.set("127.0.0.1")
+
+    def _toggle_port_scan(self) -> None:
+        self.ports_entry.configure(state="normal" if self.scan_ports.get() else "disabled")
+
+    def _subnet_target(self) -> str:
+        octets = []
+        for value in self.subnet_octets:
+            text = value.get().strip()
+            if not text.isdigit() or not 0 <= int(text) <= 255:
+                raise ValueError("Każdy oktet podsieci musi być liczbą od 0 do 255.")
+            octets.append(str(int(text)))
+        prefix = self.subnet_prefix.get().strip()
+        if not prefix.isdigit() or not 0 <= int(prefix) <= 32:
+            raise ValueError("Maska CIDR musi być liczbą od 0 do 32.")
+        return f"{'.'.join(octets)}/{int(prefix)}"
 
     def _profile_changed(self, value: str) -> None:
         self.ports.set(network.PORT_PROFILES[value])
@@ -153,13 +189,18 @@ class AdvancedNetworkDialog(ManagedToplevel):
     def _start(self) -> None:
         if self.running:
             return
-        target = self.target.get().strip()
+        try:
+            target = self._subnet_target() if self.mode.get() == "Podsieć CIDR" else self.target.get().strip()
+        except ValueError as exc:
+            messagebox.showwarning("Adres podsieci", str(exc), parent=self); return
+        if self.mode.get() == "Podsieć CIDR":
+            self.target.set(target)
         if self.mode.get() == "Podsieć CIDR" and "/" not in target:
             messagebox.showwarning("Skaner sieci", "Dla podsieci podaj zapis CIDR, np. 192.168.1.0/24.", parent=self); return
         if self.mode.get() == "Pojedynczy host" and "/" in target:
             messagebox.showwarning("Skaner sieci", "Dla pojedynczego hosta podaj adres IP albo nazwę DNS bez maski CIDR.", parent=self); return
         try:
-            ports = network.parse_ports(self.ports.get())
+            ports = network.parse_ports(self.ports.get()) if self.scan_ports.get() else []
         except Exception as exc:
             messagebox.showerror("Porty TCP", str(exc), parent=self); return
         timeout = float(self.timeout.get())
@@ -230,7 +271,8 @@ class AdvancedNetworkDialog(ManagedToplevel):
 
         ip = host["ip"]
         self.hosts_by_ip[ip] = host
-        ports = ", ".join(str(item["port"]) for item in host.get("open_ports", [])) or "-"
+        ports = ", ".join(str(item["port"]) for item in host.get("open_ports", [])) if host.get("ports_scanned", True) else "Nie skanowano"
+        ports = ports or "-"
         values = (ip, host.get("computer_name") or "-", host.get("domain") or "-", host.get("device_type"), host.get("mac") or "-", ports)
         if self.tree.exists(ip):
             self.tree.item(ip, values=values)
@@ -245,6 +287,36 @@ class AdvancedNetworkDialog(ManagedToplevel):
     def _selected(self) -> dict | None:
         selection = self.tree.selection()
         return self.hosts_by_ip.get(selection[0]) if selection else None
+
+    def _context_menu(self, event) -> str:
+        row = self.tree.identify_row(event.y)
+        if not row:
+            return "break"
+        self.tree.selection_set(row)
+        self.tree.focus(row)
+        self._select_host()
+        host = self._selected()
+        if not host:
+            return "break"
+        menu = tk.Menu(self, tearoff=False, background=self.colors["card"], foreground=self.colors["text"], activebackground=self.colors["accent"], activeforeground="#ffffff")
+        rdp_state = "normal" if host.get("online") and host.get("device_type") == "Komputer Windows" else "disabled"
+        menu.add_command(label="Pulpit zdalny (RDP)", command=self._rdp, state=rdp_state)
+        menu.add_command(label="Pomoc zdalna (OfferRA)", command=self._remote_help, state="normal")
+        menu.add_separator()
+        menu.add_command(label="Kopiuj adres IP", command=lambda: self._copy_text(host.get("ip", "")))
+        menu.add_command(label="Kopiuj nazwę komputera", command=lambda: self._copy_text(host.get("computer_name") or host.get("hostname") or ""))
+        menu.add_command(label="Kopiuj szczegóły JSON", command=lambda: self._copy_text(json.dumps(host, ensure_ascii=False, indent=2)))
+        menu.add_command(label="Eksportuj wyniki JSON/CSV/PDF", command=self._export, state="normal" if self.result else "disabled")
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
+        return "break"
+
+    def _copy_text(self, value: str) -> None:
+        self.clipboard_clear()
+        self.clipboard_append(value)
+        self.update_idletasks()
 
     def _select_host(self, _event=None) -> None:
         self._show_details(self._selected())

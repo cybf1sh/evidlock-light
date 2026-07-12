@@ -10,7 +10,7 @@ DOCUMENTS = [
     },
     {
         "title": "Network",
-        "body": "Network zawiera zaawansowany skaner TCP dla pojedynczego adresu i podsieci CIDR. Każdy zakończony host pojawia się od razu w tabeli, zanim zakończy się skan całego zakresu. Wyniki obejmują ICMP, DNS/FQDN, nazwę komputera, MAC, otwarte usługi i heurystyczny typ urządzenia. Eksport obejmuje JSON, CSV i PDF. RDP jest dostępny dla wykrytych komputerów Windows, a pomoc techniczna używa wyłącznie msra.exe /offerRA z ręcznie wpisanym IP. TShark zachowuje osobny status i instalację Wireshark przez winget.",
+        "body": "Network zawiera zaawansowany skaner TCP dla pojedynczego adresu i podsieci CIDR. Podsieć ma osobne pola oktetów z kropkami i maską, a skanowanie otwartych portów można wyłączyć. Każdy zakończony host pojawia się od razu w tabeli, zanim zakończy się skan całego zakresu. Wyniki obejmują ICMP, DNS/FQDN, nazwę komputera, MAC, otwarte usługi i heurystyczny typ urządzenia. Menu prawokliku udostępnia RDP, OfferRA, kopiowanie danych i eksport. RDP jest dostępny dla wykrytych komputerów Windows, a pomoc techniczna używa wyłącznie msra.exe /offerRA z ręcznie wpisanym IP. TShark zachowuje osobny status i instalację Wireshark przez winget.",
     },
     {
         "title": "Pamięć",

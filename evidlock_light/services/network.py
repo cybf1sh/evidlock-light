@@ -145,7 +145,9 @@ def _scan_host(ip: str, ports: list[int], timeout: float, parallel_ports: bool, 
     started = time.perf_counter()
     ping = winapi.icmp_echo(ip, int(timeout * 1000))
     port_results: list[dict] = []
-    if parallel_ports:
+    if not ports:
+        port_results = []
+    elif parallel_ports:
         with ThreadPoolExecutor(max_workers=min(32, len(ports))) as executor:
             futures = {executor.submit(_tcp_port, ip, port, timeout): port for port in ports}
             for future in as_completed(futures):
@@ -166,7 +168,7 @@ def _scan_host(ip: str, ports: list[int], timeout: float, parallel_ports: bool, 
         "ip": ip, "online": bool(ping or open_services), "icmp": ping, "hostname": hostname,
         "computer_name": computer, "domain": domain, "mac": mac, "device_type": device_type,
         "confidence": confidence, "open_ports": open_services, "open_port_count": len(open_services),
-        "scanned_port_count": len(port_results), "scan_ms": round((time.perf_counter() - started) * 1000, 1),
+        "scanned_port_count": len(port_results), "ports_scanned": bool(ports), "scan_ms": round((time.perf_counter() - started) * 1000, 1),
     }
 
 
@@ -201,7 +203,7 @@ def scan_network(target: str, ports: list[int], timeout: float = 0.45, workers: 
     results.sort(key=lambda item: ipaddress.ip_address(item["ip"]))
     return {
         "target": target, "addresses": len(addresses), "online": sum(1 for item in results if item["online"]),
-        "ports": ports, "timeout": timeout, "workers": workers, "cancelled": bool(stop_event and stop_event.is_set()),
+        "ports": ports, "ports_scanned": bool(ports), "timeout": timeout, "workers": workers, "cancelled": bool(stop_event and stop_event.is_set()),
         "elapsed_seconds": round(time.perf_counter() - started, 2), "hosts": results,
     }
 

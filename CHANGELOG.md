@@ -7,6 +7,8 @@
 - Dodano szczegółowy panel hosta oraz eksport skanu do JSON, CSV i profesjonalnego PDF.
 - Dodano kontrolowany RDP dla wykrytych komputerów Windows oraz pomoc techniczną wyłącznie przez `msra.exe /offerRA`; adres IP pomocy można wpisać ręcznie.
 - Wyniki skanowania podsieci są teraz dopisywane do tabeli na bieżąco po zakończeniu każdego hosta.
+- Dodano przełącznik skanowania otwartych portów oraz pola oktetów z kropkami i maską CIDR dla podsieci.
+- Dodano menu prawokliku hosta z RDP, OfferRA, kopiowaniem IP/nazwy/szczegółów JSON i eksportem JSON/CSV/PDF.
 - Podgląd informacji o nośnikach aktualizuje to samo okno natychmiast po zaznaczeniu, odznaczeniu lub odświeżeniu dysków.
 - Zmiana zestawu nośników unieważnia linki do poprzedniego PDF, aby nie otwierać raportu dla nieaktualnego wyboru.
 - Eksport dziennika TXT/JSON pokazuje potwierdzenie, liczbę wpisów, ścieżki plików i link `Otwórz katalog`.
