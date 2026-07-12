@@ -97,6 +97,22 @@ Po buildzie, tak jak w EvidLockV2, powstają:
 Skrypt sprawdza zależności, wynik PyInstallera i obecność pliku EXE. Po każdym
 buildzie tworzy również plik kontrolny SHA-256.
 
+## Kopia na Google Drive
+
+Skrypt `backup_google_drive_light.ps1` korzysta z katalogu synchronizowanego przez Google Drive dla komputerów:
+
+```powershell
+.\backup_google_drive_light.ps1
+```
+
+Pierwsze uruchomienie tworzy pełny snapshot 1:1 projektu. Kolejne uruchomienia zapisują tylko kod, dokumentację, konfigurację, skrypty i artefakty wersji/buildów. Stan pierwszej kopii jest zapisywany w `.evidlock_light_backup_state.json` w katalogu docelowym. Pełną kopię można wymusić:
+
+```powershell
+.\backup_google_drive_light.ps1 -ForceFull
+```
+
+Jeżeli Google Drive używa innej litery lub ścieżki, podaj ją parametrem `-DestinationRoot`.
+
 ## Repozytorium
 
 Repozytorium jest całkowicie niezależne od EvidLock i EvidLockV2. Katalog `.venv`, buildy, raporty oraz eksporty są lokalnymi danymi roboczymi i nie trafiają do Git.

@@ -1,5 +1,10 @@
 # EvidLock Light - changelog
 
+## 2026-07-12 - tryb kopii pełnej i lekkiej
+
+- Pierwsza kopia Google Drive jest pełnym snapshotem 1:1 projektu.
+- Kolejne kopie zawierają kod, dokumentację, konfigurację, skrypty i artefakty wersji; dodano także `-ForceFull`.
+
 ## 2026-07-12 - potwierdzenie zamknięcia
 
 - Dodano modalne okno zamknięcia z logo EvidLock Light oraz nazwą aktywnej operacji blokującej zamknięcie.

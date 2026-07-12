@@ -1,28 +1,111 @@
 param(
     [string]$DestinationRoot = "$env:USERPROFILE\Google Drive\EvidLockLight_Backup",
-    [string]$ChangeName = "backup EvidLock Light"
+    [string]$ChangeName = "backup EvidLock Light",
+    [string]$SourceRoot = "",
+    [switch]$ForceFull
 )
 
 $ErrorActionPreference = "Stop"
-$Root = Split-Path -Parent $MyInvocation.MyCommand.Path
-$Stamp = Get-Date -Format "yyyyMMdd_HHmmss"
+$Root = if ([string]::IsNullOrWhiteSpace($SourceRoot)) {
+    [IO.Path]::GetFullPath((Split-Path -Parent $MyInvocation.MyCommand.Path))
+} else {
+    [IO.Path]::GetFullPath($SourceRoot)
+}
+$Root = $Root.TrimEnd('\')
+$DestinationRoot = [IO.Path]::GetFullPath($DestinationRoot).TrimEnd('\')
+$StatePath = Join-Path $DestinationRoot ".evidlock_light_backup_state.json"
+$Stamp = Get-Date -Format "yyyyMMdd_HHmmss_fff"
 $Target = Join-Path $DestinationRoot "evidlock_light_$Stamp"
+
+if ($DestinationRoot -eq $Root) {
+    throw "Katalog docelowy kopii nie może być katalogiem projektu."
+}
+if (-not (Test-Path -LiteralPath $Root -PathType Container)) {
+    throw "Nie znaleziono katalogu źródłowego: $Root"
+}
 
 New-Item -ItemType Directory -Force -Path $Target | Out-Null
 
-$Excluded = @(".git", ".venv", "build", "dist", "releases", "__pycache__", "logi", "raporty", "eksport")
-Get-ChildItem -LiteralPath $Root -Force | Where-Object {
-    $Excluded -notcontains $_.Name
-} | ForEach-Object {
-    Copy-Item -LiteralPath $_.FullName -Destination $Target -Recurse -Force
+function Copy-BackupItem {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    if (Test-Path -LiteralPath $Path) {
+        Copy-Item -LiteralPath $Path -Destination $Target -Recurse -Force
+    }
+}
+
+function Is-UnderDestination {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    $fullPath = [IO.Path]::GetFullPath($Path).TrimEnd('\')
+    return $fullPath.Equals($DestinationRoot, [StringComparison]::OrdinalIgnoreCase) -or
+        $fullPath.StartsWith("$DestinationRoot\", [StringComparison]::OrdinalIgnoreCase)
+}
+
+$firstBackup = $ForceFull -or -not (Test-Path -LiteralPath $StatePath)
+$mode = if ($firstBackup) { "FULL" } else { "CODE+VERSION" }
+
+if ($firstBackup) {
+    # Pierwszy snapshot jest pełną kopią projektu, włącznie z raportami,
+    # eksportami, buildami i aktualnymi artefaktami wydania.
+    Get-ChildItem -LiteralPath $Root -Force | Where-Object {
+        -not (Is-UnderDestination $_.FullName)
+    } | ForEach-Object {
+        Copy-BackupItem $_.FullName
+    }
+} else {
+    # Kolejne snapshoty zawierają tylko kod, dokumentację, konfigurację,
+    # skrypty oraz artefakty wersji. Dane robocze pozostają w pierwszej kopii.
+    @("evidlock_light", "docs", "releases") | ForEach-Object {
+        Copy-BackupItem (Join-Path $Root $_)
+    }
+
+    $codeExtensions = @(
+        ".py", ".ps1", ".cmd", ".bat", ".md", ".txt", ".json", ".toml",
+        ".ini", ".cfg", ".yml", ".yaml", ".sha256"
+    )
+    Get-ChildItem -LiteralPath $Root -File -Force | Where-Object {
+        $codeExtensions -contains $_.Extension.ToLowerInvariant()
+    } | ForEach-Object {
+        Copy-BackupItem $_.FullName
+    }
+
+    # EXE i kopie EXE są artefaktami wersji, więc są zachowywane w trybie lekkim.
+    Get-ChildItem -LiteralPath $Root -File -Force -Filter "EvidLockLight*.exe*" | ForEach-Object {
+        Copy-BackupItem $_.FullName
+    }
 }
 
 $meta = [ordered]@{
     name = $ChangeName
+    mode = $mode
     source = $Root
     created = (Get-Date).ToString("s")
     target = $Target
+    first_full_copy = $firstBackup
+    note = if ($firstBackup) {
+        "Pełny snapshot projektu 1:1."
+    } else {
+        "Kopia kodu, konfiguracji, dokumentacji i artefaktów wersji."
+    }
 }
 $meta | ConvertTo-Json -Depth 4 | Set-Content -Encoding UTF8 -LiteralPath (Join-Path $Target "backup_meta.json")
 
-Write-Host "Kopia EvidLock Light gotowa: $Target"
+$state = [ordered]@{
+    schema = 1
+    initialized = $true
+    first_full_copy = if ($firstBackup -and -not (Test-Path -LiteralPath $StatePath)) { $Target } else {
+        try { (Get-Content -Raw -LiteralPath $StatePath | ConvertFrom-Json).first_full_copy } catch { $Target }
+    }
+    last_backup = $Target
+    last_mode = $mode
+    source = $Root
+}
+$state | ConvertTo-Json -Depth 4 | Set-Content -Encoding UTF8 -LiteralPath $StatePath
+
+Write-Host "Kopia EvidLock Light gotowa ($mode): $Target"
+if ($firstBackup) {
+    Write-Host "Pierwsze uruchomienie: pełna kopia 1:1 projektu."
+} else {
+    Write-Host "Kolejne uruchomienie: zapisano kod i artefakty wersji."
+}
