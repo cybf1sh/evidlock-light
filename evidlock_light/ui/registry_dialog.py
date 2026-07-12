@@ -12,9 +12,10 @@ import customtkinter as ctk
 
 from .. import reports, winapi
 from ..services import registry
+from .windowing import ManagedToplevel
 
 
-class RegistryExportDialog(ctk.CTkToplevel):
+class RegistryExportDialog(ManagedToplevel):
     def __init__(self, parent, colors: dict[str, str], on_result=None) -> None:
         super().__init__(parent)
         self.colors=colors; self.on_result=on_result; self.result=None; self.running=False
@@ -86,7 +87,7 @@ class RegistryExportDialog(ctk.CTkToplevel):
         if self.on_result:self.on_result(result)
     def _fail(self,error):self.running=False; self.progress.configure(progress_color=self.colors["red"]); self.log.insert("end",f"\nBŁĄD: {error}"); self.export_button.configure(state="normal",text="Eksportuj")
     def _open(self):
-        if self.result and self.result.get("output_dir"):os.startfile(self.result["output_dir"])
+        if self.result and self.result.get("output_dir"):winapi.open_path(self.result["output_dir"])
     def _browse_pdf(self):
         pdf=reports.find_pdf(self.result)
         if pdf:

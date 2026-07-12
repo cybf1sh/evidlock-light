@@ -11,11 +11,12 @@ from tkinter import filedialog, messagebox
 
 import customtkinter as ctk
 
-from .. import reports
+from .. import reports, winapi
 from ..services import one_click
+from .windowing import ManagedToplevel
 
 
-class OneClickDialog(ctk.CTkToplevel):
+class OneClickDialog(ManagedToplevel):
     def __init__(self,parent,colors:dict[str,str],initial_sources=None,on_result=None)->None:
         super().__init__(parent);self.colors=colors;self.on_result=on_result;self.sources=[];self.result=None;self.running=False
         self.title("One-click - zabezpiecz dane");self.geometry("860x720");self.minsize(720,620);self.configure(fg_color=colors["bg"]);self.grid_columnconfigure(0,weight=1);self.grid_rowconfigure(4,weight=1)
@@ -80,7 +81,7 @@ class OneClickDialog(ctk.CTkToplevel):
         self.progress.set(1);self.status.configure(text="100% - zakończono. Dane znajdują się w katalogu wynikowym.");self.folder_button.configure(state="normal");self.pdf_button.configure(state="normal")
         if self.on_result:self.on_result(result)
     def _open(self):
-        if self.result:os.startfile(self.result["output_dir"])
+        if self.result:winapi.open_path(self.result["output_dir"])
     def _pdf(self):
         pdf=reports.find_pdf(self.result)
         if pdf:reports.open_pdf(pdf)

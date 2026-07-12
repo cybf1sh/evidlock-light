@@ -25,6 +25,14 @@ DOCUMENTS = [
         "body": "Workflow One-click przyjmuje pliki i katalogi, ustawia read-only, liczy SHA-256 każdego pliku, tworzy tabelaryczny raport PDF oraz szyfrowane archiwum ZIP albo 7z. Wyniki znajdują się w raporty/One-click.",
     },
     {
+        "title": "Zrzut ekranu",
+        "body": "Panel pozwala wybrać jedno, kilka albo wszystkie widoczne okna EvidLock Light. Tryb pulpitu minimalizuje aplikację i pokazuje zewnętrzny panel. Przechwytywanie korzysta z User32/GDI i zapisuje PNG w raporty/zrzuty-ekranu.",
+    },
+    {
+        "title": "Bezpieczne zamykanie okien",
+        "body": "Okna robocze są podnoszone nad aplikację. Nie można zamknąć okna ani całego programu podczas aktywnej operacji. Główne okno przed zakończeniem zawsze prosi o potwierdzenie.",
+    },
+    {
         "title": "Narzędzia PDF",
         "body": "Tworzenie PDF bez nagłówka obsługuje tekst, DOCX, obrazy i istniejące PDF. Opcjonalne szyfrowanie oraz funkcja Szyfruj PDF używają AES-256 i wymagają hasła minimum 8 znaków. Pliki trafiają do raporty/PDF.",
     },

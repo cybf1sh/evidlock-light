@@ -40,7 +40,8 @@ Lewe menu zawiera `Dashboard`, rozwijane `Narzędzia` z tymi samymi czterema kat
 - Bieżący raport: jedno współdzielone okno, które zastępuje treść po kolejnej operacji i zapisuje wynik dowolnego modułu do PDF.
 - `Przeglądaj PDF`: otwiera gotowy raport w domyślnej przeglądarce; dla bieżącego wyniku automatycznie tworzy PDF, jeśli jeszcze nie istnieje.
 - Dziennik: wpisy operacji programu, podgląd i eksport TXT/JSON.
-- Zrzut ekranu/nagrywanie: planowany moduł lekki, ograniczony do głównego okna.
+- Zrzut ekranu: wybór jednego, kilku lub wszystkich widocznych okien aplikacji oraz zrzut całego pulpitu z zewnętrznego panelu. Obraz jest przechwytywany przez User32/GDI (`PrintWindow`/`BitBlt`) do `raporty/zrzuty-ekranu`.
+- Okna robocze pozostają nad aplikacją; zamknięcie jest blokowane podczas operacji, a główne okno zawsze wymaga potwierdzenia zakończenia programu.
 
 ## Uruchomienie
 

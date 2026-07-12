@@ -3,18 +3,18 @@
 from __future__ import annotations
 
 import json
-import os
 import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox
 
 import customtkinter as ctk
 
-from .. import reports
+from .. import reports, winapi
 from ..services import pdf_tools
+from .windowing import ManagedToplevel
 
 
-class PdfToolsDialog(ctk.CTkToplevel):
+class PdfToolsDialog(ManagedToplevel):
     def __init__(self, parent, colors: dict[str, str], on_result=None) -> None:
         super().__init__(parent); self.colors=colors; self.on_result=on_result; self.result=None; self.running=False
         self.title("Narzędzia PDF"); self.geometry("760x590"); self.minsize(650,520); self.configure(fg_color=colors["bg"]); self.grid_columnconfigure(0,weight=1); self.grid_rowconfigure(4,weight=1)
@@ -72,4 +72,4 @@ class PdfToolsDialog(ctk.CTkToplevel):
         if pdf:reports.open_pdf(pdf)
     def _folder(self):
         pdf=reports.find_pdf(self.result)
-        if pdf:os.startfile(str(pdf.parent))
+        if pdf:winapi.open_path(pdf.parent)

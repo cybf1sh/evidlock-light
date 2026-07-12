@@ -5,10 +5,10 @@ from __future__ import annotations
 import datetime as dt
 import html
 import json
-import os
 from pathlib import Path
 from typing import Iterable
 
+from . import winapi
 from .config import default_report_path
 
 
@@ -190,5 +190,5 @@ def open_pdf(path: str | Path) -> Path:
     target = Path(path).resolve()
     if not target.is_file() or target.suffix.lower() != ".pdf":
         raise FileNotFoundError(f"Nie znaleziono raportu PDF: {target}")
-    os.startfile(str(target))
+    winapi.open_path(target)
     return target

@@ -10,9 +10,10 @@ from tkinter import filedialog
 import customtkinter as ctk
 
 from ..services import readonly
+from .windowing import ManagedToplevel
 
 
-class ReadOnlyDialog(ctk.CTkToplevel):
+class ReadOnlyDialog(ManagedToplevel):
     def __init__(self, parent, colors: dict[str, str], initial_path: str = "", on_result=None) -> None:
         super().__init__(parent)
         self.colors = colors

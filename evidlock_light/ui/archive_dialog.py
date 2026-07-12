@@ -11,10 +11,12 @@ from tkinter import filedialog, messagebox
 
 import customtkinter as ctk
 
+from .. import winapi
 from ..services import archive
+from .windowing import ManagedToplevel
 
 
-class ArchiveDialog(ctk.CTkToplevel):
+class ArchiveDialog(ManagedToplevel):
     def __init__(self, parent, colors: dict[str, str], initial_sources=None, on_result=None) -> None:
         super().__init__(parent)
         self.colors = colors; self.on_result = on_result; self.sources = []
@@ -89,4 +91,4 @@ class ArchiveDialog(ctk.CTkToplevel):
         self.progress.set(1); self.status.configure(text="Archiwum zostało utworzone."); self.open_button.configure(state="normal")
         if self.on_result: self.on_result(result)
     def _open_folder(self):
-        if self.result and self.result.get("archive"): os.startfile(str(Path(self.result["archive"]).parent))
+        if self.result and self.result.get("archive"): winapi.open_path(Path(self.result["archive"]).parent)

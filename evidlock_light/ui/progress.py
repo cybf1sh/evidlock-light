@@ -6,11 +6,14 @@ import json
 import threading
 import tkinter as tk
 from collections.abc import Callable
+from tkinter import messagebox
 
 import customtkinter as ctk
 
+from .windowing import ManagedToplevel
 
-class ProgressDialog(ctk.CTkToplevel):
+
+class ProgressDialog(ManagedToplevel):
     """Uruchamia zadanie w tle i bezpiecznie aktualizuje interfejs CTk."""
 
     def __init__(self, parent, title: str, colors: dict[str, str], font: str = "Segoe UI") -> None:
@@ -79,3 +82,5 @@ class ProgressDialog(ctk.CTkToplevel):
     def _close_if_done(self) -> None:
         if not self._running:
             self.destroy()
+        else:
+            messagebox.showwarning("Operacja w toku", "Nie można zamknąć okna, dopóki operacja nie zostanie zakończona.", parent=self)

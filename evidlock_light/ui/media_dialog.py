@@ -4,18 +4,18 @@ from __future__ import annotations
 
 import threading
 import tkinter as tk
-import os
 from pathlib import Path
 
 import customtkinter as ctk
 from PIL import Image
 from tkinter import messagebox
 
-from .. import reports
+from .. import reports, winapi
 from ..services import media
+from .windowing import ManagedToplevel
 
 
-class MediaDialog(ctk.CTkToplevel):
+class MediaDialog(ManagedToplevel):
     def __init__(self, parent, colors: dict[str, str], on_result=None) -> None:
         super().__init__(parent)
         self.colors = colors
@@ -23,6 +23,7 @@ class MediaDialog(ctk.CTkToplevel):
         self.report_host = parent
         self.icon_images: list[ctk.CTkImage] = []
         self.pdf_path: str | None = None
+        self.running = False
         self.items = media.list_media()
         self.selected: dict[str, tk.BooleanVar] = {}
         self.title("Informacje o nośnikach")
@@ -158,7 +159,7 @@ class MediaDialog(ctk.CTkToplevel):
     def _generate(self) -> None:
         letters=self._selected_letters()
         if not letters: return
-        self.pdf_path=None; self.browse_pdf.configure(state="disabled"); self.open_folder.configure(state="disabled"); self.generate.configure(state="disabled",text="Generowanie..."); self.progress.set(.05)
+        self.running=True; self.pdf_path=None; self.browse_pdf.configure(state="disabled"); self.open_folder.configure(state="disabled"); self.generate.configure(state="disabled",text="Generowanie..."); self.progress.set(.05)
         def worker():
             try:
                 result=media.report_media(letters=letters)
@@ -168,11 +169,11 @@ class MediaDialog(ctk.CTkToplevel):
         threading.Thread(target=worker,daemon=True).start()
 
     def _finish(self,path:str)->None:
-        self.pdf_path=path; self.progress.set(1); self.status.configure(text=f"Raport gotowy: {path}"); self.generate.configure(state="normal",text="Generuj raport"); self.browse_pdf.configure(state="normal"); self.open_folder.configure(state="normal")
+        self.running=False; self.pdf_path=path; self.progress.set(1); self.status.configure(text=f"Raport gotowy: {path}"); self.generate.configure(state="normal",text="Generuj raport"); self.browse_pdf.configure(state="normal"); self.open_folder.configure(state="normal")
         if self.on_result: self.on_result({"pdf":path})
 
     def _fail(self,exc:Exception)->None:
-        self.progress.configure(progress_color=self.colors["red"]); self.status.configure(text=f"Błąd: {exc}"); self.generate.configure(state="normal",text="Generuj raport")
+        self.running=False; self.progress.configure(progress_color=self.colors["red"]); self.status.configure(text=f"Błąd: {exc}"); self.generate.configure(state="normal",text="Generuj raport")
 
     def _browse_pdf(self)->None:
         if self.pdf_path:
@@ -181,7 +182,7 @@ class MediaDialog(ctk.CTkToplevel):
 
     def _open_folder(self)->None:
         if self.pdf_path:
-            os.startfile(str(Path(self.pdf_path).resolve().parent))
+            winapi.open_path(Path(self.pdf_path).resolve().parent)
 
     def _preview(self)->None:
         letters=self._selected_letters()

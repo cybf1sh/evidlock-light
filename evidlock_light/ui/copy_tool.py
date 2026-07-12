@@ -13,9 +13,10 @@ import customtkinter as ctk
 
 from .. import reports
 from ..services import copying
+from .windowing import ManagedToplevel
 
 
-class CopyCompareDialog(ctk.CTkToplevel):
+class CopyCompareDialog(ManagedToplevel):
     def __init__(self, parent, colors: dict[str, str], initial_mode: str = "copy", on_result=None, initial_source: str = "", initial_target: str = "") -> None:
         super().__init__(parent)
         self.colors = colors

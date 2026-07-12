@@ -2,6 +2,12 @@
 
 ## 2026-07-12 - samodzielne repo i pełne moduły Windows
 
+- Dodano panel zrzutów jak w EvidLockV2: wybrane okna, wszystkie widoczne okna i cały pulpit z zewnętrznego kontrolera.
+- Zrzuty korzystają bezpośrednio z User32/GDI (`PrintWindow`, `BitBlt`, `GetDIBits`) i trafiają do `raporty/zrzuty-ekranu`.
+- Wszystkie okna robocze są podnoszone nad aplikację i blokują zamknięcie podczas aktywnej operacji.
+- Główne okno blokuje zamknięcie w czasie pracy narzędzi, a w stanie bezczynności wymaga potwierdzenia zakończenia programu.
+- Zastąpiono ciężką ikonę One-click delikatną, przezroczystą ikoną konturowej tarczy dopasowaną do skórki.
+- Otwieranie plików i katalogów przeniesiono z `os.startfile` na `ShellExecuteW` w warstwie WinAPI.
 - Zastąpiono prosty generator PDF profesjonalnym silnikiem Unicode z sekcjami, tabelami, stopką i numeracją stron.
 - Naprawiono polskie znaki w raportach nośników, logów, SHA-256 i One-click.
 - Rozbudowano raport nośników oraz raport PDF logów Windows o parametry, EVTX, SHA-256 i próbkę zdarzeń.

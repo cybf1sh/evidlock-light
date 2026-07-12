@@ -10,9 +10,10 @@ from tkinter import filedialog, messagebox
 import customtkinter as ctk
 
 from ..services import hashing, memory
+from .windowing import ManagedToplevel
 
 
-class MemoryManagerDialog(ctk.CTkToplevel):
+class MemoryManagerDialog(ManagedToplevel):
     def __init__(self, parent, colors: dict[str, str], on_result=None) -> None:
         super().__init__(parent)
         self.colors = colors

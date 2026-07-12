@@ -11,9 +11,10 @@ import customtkinter as ctk
 
 from .. import reports, winapi
 from ..services import windows_logs
+from .windowing import ManagedToplevel
 
 
-class WindowsLogsDialog(ctk.CTkToplevel):
+class WindowsLogsDialog(ManagedToplevel):
     def __init__(self,parent,colors:dict[str,str],on_result=None)->None:
         super().__init__(parent); self.colors=colors; self.on_result=on_result; self.result=None; self.running=False; self.per_log={}
         self.title("Eksport logów systemowych Windows"); self.geometry("940x780"); self.minsize(790,650); self.configure(fg_color=colors["bg"]); self.transient(parent)
@@ -92,7 +93,7 @@ class WindowsLogsDialog(ctk.CTkToplevel):
         if self.on_result:self.on_result(result)
     def _fail(self,error):self.running=False;self.progress.configure(progress_color=self.colors["red"]);self.status.configure(text=f"Błąd: {error}");self.log.insert("end",f"\nBŁĄD: {error}");self.export_button.configure(state="normal",text="Rozpocznij eksport")
     def _open(self):
-        if self.result and self.result.get("output_dir"):os.startfile(self.result["output_dir"])
+        if self.result and self.result.get("output_dir"):winapi.open_path(self.result["output_dir"])
     def _browse_pdf(self):
         pdf=reports.find_pdf(self.result)
         if pdf:

@@ -10,9 +10,10 @@ from tkinter import filedialog, messagebox
 import customtkinter as ctk
 
 from .. import reports
+from .windowing import ManagedToplevel
 
 
-class ReportWindow(ctk.CTkToplevel):
+class ReportWindow(ManagedToplevel):
     def __init__(self, parent, colors: dict[str, str], on_close=None) -> None:
         super().__init__(parent)
         self.colors = colors
@@ -113,6 +114,5 @@ class ReportWindow(ctk.CTkToplevel):
             messagebox.showerror("Przeglądaj PDF", str(exc), parent=self)
 
     def _close(self) -> None:
-        if self.on_close:
+        if self.request_close() and self.on_close:
             self.on_close()
-        self.destroy()

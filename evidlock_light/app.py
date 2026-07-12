@@ -26,10 +26,12 @@ from PIL import Image
 
 from . import APP_NAME, APP_VERSION
 from . import cli, reports, themes, winapi
-from .config import CHECKSUM_REPORTS_DIR, EXPORTS_DIR, LOGS_DIR, ONE_CLICK_DIR, PDF_DIR, REPORTS_DIR, RUNTIME_DIR, ensure_runtime_dirs
-from .services import archive, capture, copying, docs, hashing, journal, media, memory, network, registry, windows_logs
+from .config import CHECKSUM_REPORTS_DIR, EXPORTS_DIR, LOGS_DIR, ONE_CLICK_DIR, PDF_DIR, REPORTS_DIR, RUNTIME_DIR, SCREENSHOTS_DIR, ensure_runtime_dirs
+from .services import archive, copying, docs, hashing, journal, media, memory, network, registry, windows_logs
 from .ui.copy_tool import CopyCompareDialog
 from .ui.archive_dialog import ArchiveDialog
+from .ui.action_icon import one_click_icon
+from .ui.capture_dialog import CaptureDialog
 from .ui.drop_zone import DropZone
 from .ui.media_dialog import MediaDialog
 from .ui.memory_manager import MemoryManagerDialog
@@ -41,6 +43,7 @@ from .ui.report_window import ReportWindow
 from .ui.registry_dialog import RegistryExportDialog
 from .ui.readonly_dialog import ReadOnlyDialog
 from .ui.windows_logs_dialog import WindowsLogsDialog
+from .ui.windowing import ManagedToplevel, is_window_busy, present_toplevel
 
 try:
     from tkinterdnd2 import TkinterDnD
@@ -108,6 +111,8 @@ class EvidLockLightApp(ctk.CTk):
         self.archive_dialog: ArchiveDialog | None = None
         self.pdf_tools_dialog: PdfToolsDialog | None = None
         self.one_click_dialog: OneClickDialog | None = None
+        self.capture_dialog: CaptureDialog | None = None
+        self._external_capture_active = False
         self.action_images: list[ctk.CTkImage] = []
         self.last_report_title = "Bieżący raport"
         self.last_report_data: object = {"status": "Brak wyników do wyświetlenia."}
@@ -116,6 +121,7 @@ class EvidLockLightApp(ctk.CTk):
         self.drop_zone: DropZone | None = None
         self._build_shell()
         self.show_page("Dashboard")
+        self.protocol("WM_DELETE_WINDOW", self._request_close)
         journal.log_event("INFO", "UI", "Uruchomiono EvidLock Light", {"version": APP_VERSION, "drag_drop": self.drag_drop_available})
 
     def _build_shell(self) -> None:
@@ -231,7 +237,7 @@ class EvidLockLightApp(ctk.CTk):
     def _action_icon(self, name: str, size: int = 28) -> ctk.CTkImage | None:
         path = Path(__file__).resolve().parent / "assets" / "action_icons" / f"{name}.png"
         try:
-            image = Image.open(path).convert("RGBA")
+            image = one_click_icon(self.colors["accent"], max(64, size * 2)) if name == "one_click" else Image.open(path).convert("RGBA")
             result = ctk.CTkImage(light_image=image, dark_image=image, size=(size, size))
             self.action_images.append(result)
             return result
@@ -270,7 +276,7 @@ class EvidLockLightApp(ctk.CTk):
             "Narzędzia": "Wszystkie funkcje uporządkowane w tej samej kategorii co na Dashboardzie.",
             "Network": "Skaner TCP, TShark i punkt rozbudowy Network Analyzer.",
             "Pamięć": "Kontrola WinPmem i Volatility 3.",
-            "System": "Rejestr, logi Windows, zrzut głównego okna.",
+            "System": "Rejestr, logi Windows oraz zrzuty okien i pulpitu.",
             "Raporty": "Szybki dostęp do generatorów raportów.",
             "Dziennik": "Dziennik operacji programu, eksport TXT/JSON.",
             "Konsola": "Wbudowane CLI. Wszystkie opcje programu są dostępne jako komendy.",
@@ -300,6 +306,8 @@ class EvidLockLightApp(ctk.CTk):
     def _change_skin(self, label: str) -> None:
         """Zapisuje wybor i przebudowuje powloke bez restartu procesu."""
 
+        if not self._ensure_idle("zmiana skórki"):
+            return
         skin = themes.skin_from_label(label)
         if skin == self.skin:
             return
@@ -322,6 +330,7 @@ class EvidLockLightApp(ctk.CTk):
         self.archive_dialog = None
         self.pdf_tools_dialog = None
         self.one_click_dialog = None
+        self.capture_dialog = None
         self.action_images.clear()
         for child in self.winfo_children():
             child.destroy()
@@ -389,7 +398,7 @@ class EvidLockLightApp(ctk.CTk):
             button.pack(anchor="e", pady=(0, 10))
 
     def _open_detached(self, title: str, builder) -> None:
-        window = ctk.CTkToplevel(self)
+        window = ManagedToplevel(self)
         self.detached_windows.append(window)
         window.title(title)
         window.geometry("780x560")
@@ -474,6 +483,59 @@ class EvidLockLightApp(ctk.CTk):
 
         dialog.start(worker, on_done=done)
 
+    def _active_operation(self) -> str:
+        if self._external_capture_active:
+            return "Zrzut pulpitu"
+        windows = [*self.detached_windows]
+        for window in (
+            self.media_dialog, self.registry_dialog, self.windows_logs_dialog, self.readonly_dialog,
+            self.memory_manager_dialog, self.archive_dialog, self.pdf_tools_dialog,
+            self.one_click_dialog, self.capture_dialog,
+        ):
+            if window is not None and window not in windows:
+                windows.append(window)
+        for window in windows:
+            try:
+                if window.winfo_exists() and is_window_busy(window):
+                    return str(window.title() or "Operacja")
+            except Exception:
+                continue
+        return ""
+
+    def _ensure_idle(self, action: str) -> bool:
+        operation = self._active_operation()
+        if not operation:
+            return True
+        messagebox.showwarning(
+            "Operacja w toku",
+            f"Nie można teraz wykonać czynności „{action}”.\n\nTrwa: {operation}.\nPoczekaj na zakończenie operacji.",
+            parent=self,
+        )
+        return False
+
+    def _request_close(self) -> None:
+        if not self._ensure_idle("zamknięcie aplikacji"):
+            return
+        if not messagebox.askyesno("Zamknąć EvidLock Light?", "Czy na pewno chcesz zamknąć program?", icon="warning", parent=self):
+            return
+        journal.log_event("INFO", "UI", "Zamknięto EvidLock Light")
+        super().destroy()
+
+    def _visible_capture_windows(self) -> list[object]:
+        result: list[object] = []
+        for window in [*reversed(self.detached_windows), self]:
+            if window is None or window in result or window is self.capture_dialog:
+                continue
+            try:
+                if not window.winfo_exists() or str(window.state()) in {"withdrawn", "iconic"}:
+                    continue
+                if "zrzut ekranu" in str(window.title() or "").lower():
+                    continue
+            except Exception:
+                continue
+            result.append(window)
+        return result or [self]
+
     def _compact_result(self, result) -> dict:
         if isinstance(result, list):
             return {"items": len(result)}
@@ -504,7 +566,7 @@ class EvidLockLightApp(ctk.CTk):
             "registry": {"title": "Eksport rejestru", "text": "Pełne okno hive, dane i raporty rejestru.", "category": "Windows i system", "color": self.colors["red"], "command": self._open_registry_dialog},
             "windows_logs": {"title": "Logi Windows", "text": "Pełne okno opcji, EVTX i raportów logów.", "category": "Windows i system", "color": self.colors["red"], "command": self._open_windows_logs_dialog},
             "journal": {"title": "Dziennik Light", "text": "Podgląd i eksport operacji programu.", "category": "Windows i system", "color": self.colors["accent"], "command": lambda: self.show_page("Dziennik")},
-            "capture": {"title": "Zrzut okna", "text": "PNG wyłącznie z głównego okna.", "category": "Windows i system", "color": self.colors["accent"], "command": lambda: self._run(lambda: {"png": str(capture.capture_window(self))})},
+            "capture": {"title": "Zrzut ekranu", "text": "Wybrane lub wszystkie okna oraz pulpit przez WinAPI.", "category": "Windows i system", "color": self.colors["accent"], "command": self._open_capture_dialog},
             "console": {"title": "Konsola", "text": "Wbudowane CLI wszystkich modułów.", "category": "Windows i system", "color": self.colors["purple"], "command": lambda: self.show_page("Konsola")},
         }
 
@@ -637,7 +699,7 @@ class EvidLockLightApp(ctk.CTk):
                     return
             except Exception:
                 pass
-        window = ctk.CTkToplevel(self)
+        window = ManagedToplevel(self)
         self.quick_editor = window
         self.detached_windows.append(window)
         window.title("Konfiguracja Szybkich akcji")
@@ -920,7 +982,7 @@ class EvidLockLightApp(ctk.CTk):
         self._action_card(actions, "Eksport rejestru Windows", "Otwórz pełne okno hive, gałęzi i raportów wieloformatowych.", self._open_registry_dialog)
         self._action_card(actions, "Eksport logów Windows", "Otwórz opcje zakresu, dzienników, EVTX i raportów.", self._open_windows_logs_dialog)
         self._action_card(actions, "Eksport dziennika Light", "Eksport dziennika operacji aplikacji do TXT/JSON.", lambda: self._run(journal.export_journal))
-        self._action_card(actions, "Zrzut głównego okna", "Zapisz PNG tylko z głównego okna aplikacji.", lambda: self._run(lambda: {"png": str(capture.capture_window(self))}))
+        self._action_card(actions, "Zrzut ekranu", "Wybierz otwarte okna aplikacji albo wykonaj zrzut całego pulpitu.", self._open_capture_dialog)
 
     def _build_reports_panel(self, parent, detached: bool = False) -> None:
         parent.grid_columnconfigure(0, weight=1)
@@ -1051,7 +1113,7 @@ class EvidLockLightApp(ctk.CTk):
             "Nie prowadzi spraw, nie wymaga numeru sprawy i nie zawiera OCR.\n\n"
             "Zostają narzędzia codziennej pracy: nośniki WinAPI, SHA-256, archiwizacja, "
             "kopia 1:1, porównanie A/B, raporty PDF/JSON, rejestr Windows, logi Windows, "
-            "network, pamięć RAM, read-only, zrzut głównego okna i tryb administratora.\n\n"
+            "network, pamięć RAM, read-only, zrzuty okien i pulpitu oraz tryb administratora.\n\n"
             "Konsola jest częścią programu i daje dostęp do tych samych modułów bez osobnego EXE CLI."
             "\n\nTwórca: Mirosław Bielicki (CybF1sh)\n"
             "Kierunek: Zwalczanie Cyberprzestępczości\n"
@@ -1066,7 +1128,7 @@ class EvidLockLightApp(ctk.CTk):
             ("Zabezpieczanie", "SHA-256, manifesty, weryfikacja, archiwizacja, kopia 1:1 i porównanie."),
             ("Network", "Skaner TCP, status TShark i miejsce na rozbudowany Network Analyzer."),
             ("Pamięć", "Kontrola WinPmem i Volatility 3 oraz punkt uruchamiania analiz."),
-            ("System", "Eksport rejestru Windows, logi Windows, zrzut głównego okna."),
+            ("System", "Eksport rejestru Windows, logi Windows oraz zrzuty okien i pulpitu przez WinAPI."),
             ("Konsola", "Wbudowany interpreter komend programu, dostępny z menu."),
             ("Raporty", "PDF i JSON generowane przez moduły usługowe."),
             ("One-click", "Read-only, SHA-256, profesjonalny PDF i szyfrowane archiwum."),
@@ -1335,6 +1397,23 @@ class EvidLockLightApp(ctk.CTk):
         self.archive_dialog = ArchiveDialog(self, self.colors, initial_sources=self.dropped_paths, on_result=lambda result: self._write(result, "Archiwizacja szyfrowana"))
         self.detached_windows.append(self.archive_dialog)
 
+    def _open_capture_dialog(self) -> None:
+        if self.capture_dialog is not None:
+            try:
+                if self.capture_dialog.winfo_exists():
+                    self.capture_dialog.refresh()
+                    present_toplevel(self.capture_dialog, self)
+                    return
+            except Exception:
+                pass
+        self.capture_dialog = CaptureDialog(
+            self,
+            self.colors,
+            self._visible_capture_windows,
+            on_result=lambda result: self._write(result, "Zrzut ekranu"),
+        )
+        self.detached_windows.append(self.capture_dialog)
+
     def _open_pdf_tools(self) -> None:
         if self.pdf_tools_dialog is not None and self.pdf_tools_dialog.winfo_exists():
             self.pdf_tools_dialog.lift(); self.pdf_tools_dialog.focus_force(); return
@@ -1367,6 +1446,8 @@ class EvidLockLightApp(ctk.CTk):
         return result
 
     def _admin(self) -> None:
+        if not self._ensure_idle("przejście do trybu administratora"):
+            return
         if winapi.is_admin():
             messagebox.showinfo(APP_NAME, "Aplikacja działa już jako administrator.")
             return
@@ -1407,7 +1488,7 @@ class EvidLockLightApp(ctk.CTk):
             },
             "paths": {
                 "runtime": str(RUNTIME_DIR), "reports": str(REPORTS_DIR), "pdf": str(PDF_DIR),
-                "checksum_reports": str(CHECKSUM_REPORTS_DIR), "one_click": str(ONE_CLICK_DIR),
+                "checksum_reports": str(CHECKSUM_REPORTS_DIR), "one_click": str(ONE_CLICK_DIR), "screenshots": str(SCREENSHOTS_DIR),
                 "exports": str(EXPORTS_DIR), "logs": str(LOGS_DIR), "cwd": os.getcwd(),
             },
             "libraries": libraries,
