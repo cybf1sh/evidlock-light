@@ -144,6 +144,10 @@ class MediaDialog(ManagedToplevel):
         count=sum(variable.get() for variable in self.selected.values())
         self.status.configure(text=f"Zaznaczone nośniki: {count} / {len(self.selected)}")
         self.generate.configure(state="normal" if count else "disabled")
+        self.pdf_path = None
+        self.browse_pdf.configure(state="disabled")
+        self.open_folder.configure(state="disabled")
+        self._sync_open_preview()
 
     def _toggle_all(self) -> None:
         value=not all(variable.get() for variable in self.selected.values())
@@ -155,6 +159,30 @@ class MediaDialog(ManagedToplevel):
 
     def _selected_letters(self) -> list[str]:
         return [letter for letter, variable in self.selected.items() if variable.get()]
+
+    def _selected_items(self) -> list[dict]:
+        letters = set(self._selected_letters())
+        return [item for item in self.items if item["letter"] in letters]
+
+    def _preview_payload(self) -> tuple[str, dict]:
+        selected = self._selected_items()
+        if not selected:
+            return "Informacje o nośnikach", {"nośniki": [], "status": "Nie wybrano żadnego nośnika."}
+        title = "Informacje o nośniku" if len(selected) == 1 else "Informacje o nośnikach"
+        payload = {"nośniki": selected}
+        if self.pdf_path:
+            payload["pdf"] = self.pdf_path
+        return title, payload
+
+    def _sync_open_preview(self) -> None:
+        preview = getattr(self.report_host, "report_window", None)
+        try:
+            if preview is None or not preview.winfo_exists() or not str(preview.report_title).startswith("Informacje o nośnik"):
+                return
+            title, payload = self._preview_payload()
+            preview.update_report(title, payload)
+        except Exception:
+            pass
 
     def _generate(self) -> None:
         letters=self._selected_letters()
@@ -171,6 +199,7 @@ class MediaDialog(ManagedToplevel):
     def _finish(self,path:str)->None:
         self.running=False; self.pdf_path=path; self.progress.set(1); self.status.configure(text=f"Raport gotowy: {path}"); self.generate.configure(state="normal",text="Generuj raport"); self.browse_pdf.configure(state="normal"); self.open_folder.configure(state="normal")
         if self.on_result: self.on_result({"pdf":path})
+        self._sync_open_preview()
 
     def _fail(self,exc:Exception)->None:
         self.running=False; self.progress.configure(progress_color=self.colors["red"]); self.status.configure(text=f"Błąd: {exc}"); self.generate.configure(state="normal",text="Generuj raport")
@@ -185,9 +214,6 @@ class MediaDialog(ManagedToplevel):
             winapi.open_path(Path(self.pdf_path).resolve().parent)
 
     def _preview(self)->None:
-        letters=self._selected_letters()
-        if not letters: return
-        selected=[item for item in self.items if item["letter"] in letters]
-        title="Informacje o nośniku" if len(selected)==1 else "Informacje o nośnikach"
+        title, payload = self._preview_payload()
         if hasattr(self.report_host,"show_report"):
-            self.report_host.show_report(title, {"nośniki": selected})
+            self.report_host.show_report(title, payload)

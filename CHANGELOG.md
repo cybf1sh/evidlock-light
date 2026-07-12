@@ -2,6 +2,9 @@
 
 ## 2026-07-12 - samodzielne repo i pełne moduły Windows
 
+- Podgląd informacji o nośnikach aktualizuje to samo okno natychmiast po zaznaczeniu, odznaczeniu lub odświeżeniu dysków.
+- Zmiana zestawu nośników unieważnia linki do poprzedniego PDF, aby nie otwierać raportu dla nieaktualnego wyboru.
+- Eksport dziennika TXT/JSON pokazuje potwierdzenie, liczbę wpisów, ścieżki plików i link `Otwórz katalog`.
 - Dodano panel zrzutów jak w EvidLockV2: wybrane okna, wszystkie widoczne okna i cały pulpit z zewnętrznego kontrolera.
 - Zrzuty korzystają bezpośrednio z User32/GDI (`PrintWindow`, `BitBlt`, `GetDIBits`) i trafiają do `raporty/zrzuty-ekranu`.
 - Wszystkie okna robocze są podnoszone nad aplikację i blokują zamknięcie podczas aktywnej operacji.

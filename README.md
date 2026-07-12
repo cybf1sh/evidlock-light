@@ -25,7 +25,7 @@ Główny ekran pokazuje tylko aktywne narzędzia w czterech zakładkach: `Dane i
 
 Lewe menu zawiera `Dashboard`, rozwijane `Narzędzia` z tymi samymi czterema kategoriami, a następnie `Raporty`, `Konsola` i `O programie`. Widok kategorii korzysta z kompaktowych, dwukolumnowych kafli.
 
-- Nośniki: jedno odświeżane okno dysków, oryginalne ikony PNG USB/lokalny/sieciowy/optyczny z EvidLockV2, zajętość oraz raport PDF/JSON.
+- Nośniki: jedno odświeżane okno dysków, oryginalne ikony PNG USB/lokalny/sieciowy/optyczny z EvidLockV2, zajętość oraz raport PDF/JSON. Otwarty podgląd raportu aktualizuje się na bieżąco przy zmianie zaznaczonych dysków i odświeżeniu listy.
 - Hash SHA-256: pliki, katalogi, manifest JSON/CSV, weryfikacja manifestu oraz profesjonalny PDF w `raporty/suma-kontrolna`.
 - Zabezpieczenie danych: archiwizacja ZIP AES-256 i 7z AES-256, kopia 1:1, porównanie A/B.
 - One-click: read-only, SHA-256 każdego pliku, tabelaryczny raport PDF oraz szyfrowany ZIP/7z w `raporty/One-click`.
@@ -39,7 +39,7 @@ Lewe menu zawiera `Dashboard`, rozwijane `Narzędzia` z tymi samymi czterema kat
 - Raporty: PDF, JSON, TXT, CSV i XLSX zależnie od modułu.
 - Bieżący raport: jedno współdzielone okno, które zastępuje treść po kolejnej operacji i zapisuje wynik dowolnego modułu do PDF.
 - `Przeglądaj PDF`: otwiera gotowy raport w domyślnej przeglądarce; dla bieżącego wyniku automatycznie tworzy PDF, jeśli jeszcze nie istnieje.
-- Dziennik: wpisy operacji programu, podgląd i eksport TXT/JSON.
+- Dziennik: wpisy operacji programu, podgląd i eksport TXT/JSON. Po eksporcie wyświetlane są ścieżki obu plików i link `Otwórz katalog`.
 - Zrzut ekranu: wybór jednego, kilku lub wszystkich widocznych okien aplikacji oraz zrzut całego pulpitu z zewnętrznego panelu. Obraz jest przechwytywany przez User32/GDI (`PrintWindow`/`BitBlt`) do `raporty/zrzuty-ekranu`.
 - Okna robocze pozostają nad aplikacją; zamknięcie jest blokowane podczas operacji, a główne okno zawsze wymaga potwierdzenia zakończenia programu.
 

@@ -66,6 +66,8 @@ class ReportWindow(ManagedToplevel):
 
     def _format_data(self, data: object) -> str:
         if isinstance(data, dict) and isinstance(data.get("nośniki"), list):
+            if not data["nośniki"]:
+                return str(data.get("status") or "Nie wybrano żadnego nośnika.")
             blocks = []
             labels = {
                 "letter": "Litera dysku", "label": "Etykieta", "file_system": "System plików",

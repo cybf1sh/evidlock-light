@@ -112,6 +112,7 @@ class EvidLockLightApp(ctk.CTk):
         self.pdf_tools_dialog: PdfToolsDialog | None = None
         self.one_click_dialog: OneClickDialog | None = None
         self.capture_dialog: CaptureDialog | None = None
+        self.journal_export_dialog: ManagedToplevel | None = None
         self._external_capture_active = False
         self.action_images: list[ctk.CTkImage] = []
         self.last_report_title = "Bieżący raport"
@@ -331,6 +332,7 @@ class EvidLockLightApp(ctk.CTk):
         self.pdf_tools_dialog = None
         self.one_click_dialog = None
         self.capture_dialog = None
+        self.journal_export_dialog = None
         self.action_images.clear()
         for child in self.winfo_children():
             child.destroy()
@@ -981,7 +983,7 @@ class EvidLockLightApp(ctk.CTk):
         self._detach_button(actions, "Narzędzia systemowe", self._build_tools_panel)
         self._action_card(actions, "Eksport rejestru Windows", "Otwórz pełne okno hive, gałęzi i raportów wieloformatowych.", self._open_registry_dialog)
         self._action_card(actions, "Eksport logów Windows", "Otwórz opcje zakresu, dzienników, EVTX i raportów.", self._open_windows_logs_dialog)
-        self._action_card(actions, "Eksport dziennika Light", "Eksport dziennika operacji aplikacji do TXT/JSON.", lambda: self._run(journal.export_journal))
+        self._action_card(actions, "Eksport dziennika Light", "Eksport dziennika operacji aplikacji do TXT/JSON.", self._export_journal)
         self._action_card(actions, "Zrzut ekranu", "Wybierz otwarte okna aplikacji albo wykonaj zrzut całego pulpitu.", self._open_capture_dialog)
 
     def _build_reports_panel(self, parent, detached: bool = False) -> None:
@@ -993,7 +995,7 @@ class EvidLockLightApp(ctk.CTk):
         self._action_card(frame, "Narzędzia PDF", "Tworzenie PDF bez nagłówka i szyfrowanie AES-256 z hasłem minimum 8 znaków.", self._open_pdf_tools, self.colors["purple"])
         self._action_card(frame, "Raport nośników PDF", "Raport generowany przez moduł raportów Light.", self._media_report)
         self._action_card(frame, "Dane nośników JSON", "Eksport danych WinAPI w formacie JSON.", lambda: self._run(lambda: {"json": str(media.export_media_json())}))
-        self._action_card(frame, "Eksport dziennika TXT/JSON", "Raport z dziennika operacji programu.", lambda: self._run(journal.export_journal))
+        self._action_card(frame, "Eksport dziennika TXT/JSON", "Raport z dziennika operacji programu.", self._export_journal)
         self._action_card(frame, "Eksport logów Windows", "Opcje, EVTX, XLSX, CSV, TXT, PDF i JSON.", self._open_windows_logs_dialog, self.colors["red"])
 
     def _page_raporty(self) -> None:
@@ -1005,13 +1007,50 @@ class EvidLockLightApp(ctk.CTk):
         body.grid(row=1, column=0, sticky="nsew")
         self._build_reports_panel(body)
 
+    def _export_journal(self) -> None:
+        try:
+            result = journal.export_journal()
+            self._write(result, "Eksport dziennika TXT/JSON")
+            journal.log_event("OK", "Dziennik", "Utworzono eksport TXT/JSON", {"txt": result["txt"], "json": result["json"]})
+        except Exception as exc:
+            messagebox.showerror("Eksport dziennika", str(exc), parent=self)
+            return
+
+        if self.journal_export_dialog is not None:
+            try:
+                if self.journal_export_dialog.winfo_exists():
+                    self.journal_export_dialog.force_destroy()
+            except Exception:
+                pass
+        folder = Path(result["txt"]).resolve().parent
+        dialog = ManagedToplevel(self)
+        self.journal_export_dialog = dialog
+        self.detached_windows.append(dialog)
+        dialog.title("Eksport dziennika zakończony")
+        dialog.geometry("650x300")
+        dialog.minsize(560, 260)
+        dialog.configure(fg_color=self.colors["bg"])
+        dialog.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(dialog, text="Dziennik został utworzony", text_color=self.colors["text"], font=(FONT, 20, "bold"), anchor="w").grid(row=0, column=0, sticky="ew", padx=18, pady=(18, 4))
+        ctk.CTkLabel(dialog, text=f"Wyeksportowano wpisów: {result['events']}", text_color=self.colors["muted"], font=(FONT, 10), anchor="w").grid(row=1, column=0, sticky="ew", padx=18, pady=(0, 12))
+        details = ctk.CTkFrame(dialog, fg_color=self.colors["card"], border_width=1, border_color=self.colors["border"], corner_radius=8)
+        details.grid(row=2, column=0, sticky="ew", padx=18)
+        details.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(details, text=f"TXT: {result['txt']}", text_color=self.colors["text"], font=(FONT_MONO, 9), anchor="w", justify="left", wraplength=590).grid(row=0, column=0, sticky="ew", padx=12, pady=(12, 5))
+        ctk.CTkLabel(details, text=f"JSON: {result['json']}", text_color=self.colors["text"], font=(FONT_MONO, 9), anchor="w", justify="left", wraplength=590).grid(row=1, column=0, sticky="ew", padx=12, pady=(0, 12))
+        footer = ctk.CTkFrame(dialog, fg_color="transparent")
+        footer.grid(row=3, column=0, sticky="ew", padx=18, pady=16)
+        footer.grid_columnconfigure(0, weight=1)
+        ctk.CTkButton(footer, text="Otwórz katalog", command=lambda: winapi.open_path(folder), width=125, fg_color="transparent", hover_color=self.colors["soft"], text_color=self.colors["accent"], border_width=0).grid(row=0, column=0, sticky="w")
+        ctk.CTkButton(footer, text="Zamknij", command=dialog.request_close, width=95, fg_color=self.colors["soft"], text_color=self.colors["text"], border_width=1, border_color=self.colors["border"]).grid(row=0, column=1)
+
     def _build_journal_panel(self, parent, detached: bool = False) -> None:
         parent.grid_columnconfigure(0, weight=1)
         parent.grid_rowconfigure(1, weight=1)
         toolbar = ctk.CTkFrame(parent, fg_color=self.colors["card"], border_width=1, border_color=self.colors["border"], corner_radius=8)
         toolbar.grid(row=0, column=0, sticky="ew", pady=(0, 10))
         ctk.CTkButton(toolbar, text="Odśwież", command=lambda: render()).pack(side=tk.LEFT, padx=10, pady=10)
-        ctk.CTkButton(toolbar, text="Eksport TXT/JSON", command=lambda: self._run(journal.export_journal)).pack(side=tk.LEFT, padx=(0, 10), pady=10)
+        ctk.CTkButton(toolbar, text="Eksport TXT/JSON", command=self._export_journal).pack(side=tk.LEFT, padx=(0, 10), pady=10)
         box = ctk.CTkTextbox(parent, font=(FONT_MONO, 10), wrap="word", fg_color=self.colors["soft"])
         box.grid(row=1, column=0, sticky="nsew")
 

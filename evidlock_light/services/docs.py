@@ -6,7 +6,7 @@ from __future__ import annotations
 DOCUMENTS = [
     {
         "title": "Nośniki",
-        "body": "Lista dysków korzysta z WinAPI. Profesjonalny raport PDF ma osobne sekcje nośników, osadzony font Unicode i polskie znaki. Podgląd pozwala powiększać tekst, zapisać TXT, otworzyć katalog i bieżący PDF.",
+        "body": "Lista dysków korzysta z WinAPI. Profesjonalny raport PDF ma osobne sekcje nośników, osadzony font Unicode i polskie znaki. Otwarty podgląd aktualizuje się na bieżąco przy zmianie wybranych dysków, pozwala powiększać tekst, zapisać TXT, otworzyć katalog i bieżący PDF.",
     },
     {
         "title": "Network",
@@ -31,6 +31,10 @@ DOCUMENTS = [
     {
         "title": "Bezpieczne zamykanie okien",
         "body": "Okna robocze są podnoszone nad aplikację. Nie można zamknąć okna ani całego programu podczas aktywnej operacji. Główne okno przed zakończeniem zawsze prosi o potwierdzenie.",
+    },
+    {
+        "title": "Dziennik operacji",
+        "body": "Dziennik można odświeżyć i wyeksportować jednocześnie do TXT oraz JSON. Po zakończeniu program pokazuje liczbę wpisów, obie ścieżki wynikowe i link Otwórz katalog.",
     },
     {
         "title": "Narzędzia PDF",
