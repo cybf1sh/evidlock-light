@@ -32,7 +32,7 @@ Lewe menu zawiera `Dashboard`, rozwijane `Narzędzia` z tymi samymi czterema kat
 - Narzędzia PDF: tworzenie PDF bez nagłówka i szyfrowanie AES-256; hasło minimum 8 znaków, wyniki w `raporty/PDF`.
 - Kopia i porównanie: osobne okno, pasek postępu, automatyczna weryfikacja SHA-256 oraz raport PDF/TXT/JSON.
 - Atrybut tylko do odczytu: jeden panel sprawdzania statusu, ustawiania i zdejmowania atrybutu dla plików/katalogów.
-- Network: skaner portów TCP, diagnostyka hosta, status TShark oraz przycisk instalacji oficjalnego Wireshark przez winget.
+- Network: zaawansowany skaner TCP pojedynczego adresu lub podsieci CIDR, profile portów, ICMP, DNS/FQDN, nazwa komputera, MAC, heurystyczne rozpoznanie drukarki/komputera/routera/kamery/innego urządzenia, szczegóły hosta oraz eksport JSON/CSV/PDF. Dla wykrytych komputerów Windows dostępny jest RDP, a pomoc techniczna uruchamia wyłącznie `msra.exe /offerRA` z ręcznie wpisanym adresem IP.
 - Pamięć: manager zrzutów A/B, SHA-256, porównanie, akwizycja WinPmem, pluginy Volatility 3 oraz przyciski instalacji/pobierania zależności.
 - Rejestr Windows: wybór hive i fizycznych gałęzi, `.hiv`, `.reg`, CSV, XLSX, TXT, PDF, JSON, SHA-256 i read-only.
 - Logi Windows: tryb szybki/pełny, zakres 24h/7d/30d/cały/własny, limit, sortowanie, Application/Security/Setup/System, EVTX, CSV, XLSX, TXT, PDF, JSON, SHA-256 i read-only.
@@ -65,6 +65,7 @@ Przykładowe komendy w konsoli aplikacji:
 - `readonly clear C:\folder`
 - `readonly check C:\folder`
 - `network scan --host 192.168.1.1 --ports 22,80,443`
+- `network scan --subnet 192.168.1.0/24 --ports 80,443,445,3389 --include-offline`
 - `network deps`
 - `memory compare --a C:\ram-a.raw --b D:\ram-b.raw`
 - `pdf create --src C:\dane.txt --password Tajne123`

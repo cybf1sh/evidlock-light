@@ -31,6 +31,7 @@ from .services import archive, copying, docs, hashing, journal, media, memory, n
 from .ui.copy_tool import CopyCompareDialog
 from .ui.archive_dialog import ArchiveDialog
 from .ui.action_icon import one_click_icon
+from .ui.advanced_network_dialog import AdvancedNetworkDialog
 from .ui.capture_dialog import CaptureDialog
 from .ui.drop_zone import DropZone
 from .ui.media_dialog import MediaDialog
@@ -113,6 +114,7 @@ class EvidLockLightApp(ctk.CTk):
         self.one_click_dialog: OneClickDialog | None = None
         self.capture_dialog: CaptureDialog | None = None
         self.journal_export_dialog: ManagedToplevel | None = None
+        self.network_scanner_dialog: AdvancedNetworkDialog | None = None
         self._external_capture_active = False
         self.action_images: list[ctk.CTkImage] = []
         self.last_report_title = "Bieżący raport"
@@ -275,7 +277,7 @@ class EvidLockLightApp(ctk.CTk):
         subtitles = {
             "Dashboard": "Centralny panel szybkich akcji i codziennych narzędzi.",
             "Narzędzia": "Wszystkie funkcje uporządkowane w tej samej kategorii co na Dashboardzie.",
-            "Network": "Skaner TCP, TShark i punkt rozbudowy Network Analyzer.",
+            "Network": "Zaawansowany skaner TCP hostów i podsieci, akcje zdalne oraz TShark.",
             "Pamięć": "Kontrola WinPmem i Volatility 3.",
             "System": "Rejestr, logi Windows oraz zrzuty okien i pulpitu.",
             "Raporty": "Szybki dostęp do generatorów raportów.",
@@ -333,6 +335,7 @@ class EvidLockLightApp(ctk.CTk):
         self.one_click_dialog = None
         self.capture_dialog = None
         self.journal_export_dialog = None
+        self.network_scanner_dialog = None
         self.action_images.clear()
         for child in self.winfo_children():
             child.destroy()
@@ -493,6 +496,7 @@ class EvidLockLightApp(ctk.CTk):
             self.media_dialog, self.registry_dialog, self.windows_logs_dialog, self.readonly_dialog,
             self.memory_manager_dialog, self.archive_dialog, self.pdf_tools_dialog,
             self.one_click_dialog, self.capture_dialog,
+            self.network_scanner_dialog,
         ):
             if window is not None and window not in windows:
                 windows.append(window)
@@ -563,7 +567,7 @@ class EvidLockLightApp(ctk.CTk):
             "media_report": {"title": "Raport nośników", "text": "Raport PDF informacji o nośnikach.", "category": "Nośniki i raporty", "color": self.colors["purple"], "command": self._media_report},
             "reports": {"title": "Raporty", "text": "Otwórz centralny panel raportów.", "category": "Nośniki i raporty", "color": self.colors["red"], "command": lambda: self.show_page("Raporty")},
             "pdf_tools": {"title": "Narzędzia PDF", "text": "Tworzenie bez nagłówka i szyfrowanie PDF AES-256.", "category": "Nośniki i raporty", "color": self.colors["purple"], "command": self._open_pdf_tools},
-            "network": {"title": "Network Analyzer", "text": "Skaner TCP i narzędzia TShark.", "category": "Sieć i pamięć", "color": self.colors["teal"], "command": lambda: self.show_page("Network")},
+            "network": {"title": "Zaawansowany skaner sieci", "text": "Host lub podsieć, usługi, typ urządzenia i akcje zdalne.", "category": "Sieć i pamięć", "color": self.colors["teal"], "command": self._open_network_scanner},
             "memory": {"title": "Pamięć RAM", "text": "WinPmem, Volatility 3 i manager pamięci.", "category": "Sieć i pamięć", "color": self.colors["purple"], "command": lambda: self.show_page("Pamięć")},
             "registry": {"title": "Eksport rejestru", "text": "Pełne okno hive, dane i raporty rejestru.", "category": "Windows i system", "color": self.colors["red"], "command": self._open_registry_dialog},
             "windows_logs": {"title": "Logi Windows", "text": "Pełne okno opcji, EVTX i raportów logów.", "category": "Windows i system", "color": self.colors["red"], "command": self._open_windows_logs_dialog},
@@ -933,6 +937,21 @@ class EvidLockLightApp(ctk.CTk):
         self.media_dialog = MediaDialog(self, self.colors, on_result=lambda result: self._write(result, "Raport nośników"))
         self.detached_windows.append(self.media_dialog)
 
+    def _open_network_scanner(self) -> None:
+        if self.network_scanner_dialog is not None:
+            try:
+                if self.network_scanner_dialog.winfo_exists():
+                    present_toplevel(self.network_scanner_dialog, self)
+                    return
+            except Exception:
+                pass
+        self.network_scanner_dialog = AdvancedNetworkDialog(
+            self,
+            self.colors,
+            on_result=lambda result: self._write(result, "Zaawansowany skan sieci TCP"),
+        )
+        self.detached_windows.append(self.network_scanner_dialog)
+
     def _page_security(self) -> None:
         actions = self._layout_with_output()
         self._action_card(actions, "SHA-256 pliku", "Oblicz SHA-256 wskazanego pliku.", self._hash_file)
@@ -953,14 +972,7 @@ class EvidLockLightApp(ctk.CTk):
         ctk.CTkButton(dependency, text="Odśwież status", width=115, command=lambda: self.show_page("Network")).grid(row=1, column=1, padx=4, pady=(0, 10))
         install = ctk.CTkButton(dependency, text="Instaluj Wireshark/TShark", width=175, command=self._install_tshark, state="disabled" if status["available"] else "normal")
         install.grid(row=1, column=2, padx=(4, 10), pady=(0, 10))
-        form = ctk.CTkFrame(actions, fg_color=self.colors["card"], border_width=1, border_color=self.colors["border"], corner_radius=8)
-        form.pack(fill=tk.X, pady=(0, 10))
-        host = ctk.CTkEntry(form, placeholder_text="Host/IP", width=180)
-        host.grid(row=0, column=0, padx=14, pady=(14, 6), sticky="ew")
-        ports = ctk.CTkEntry(form, placeholder_text="Porty", width=180)
-        ports.insert(0, "22,80,443,445,3389")
-        ports.grid(row=0, column=1, padx=(0, 14), pady=(14, 6), sticky="ew")
-        ctk.CTkButton(form, text="Skanuj TCP", command=lambda: self._run(lambda: network.scan_tcp(host.get(), network.parse_ports(ports.get())))).grid(row=1, column=0, columnspan=2, sticky="ew", padx=14, pady=(0, 14))
+        self._action_card(actions, "Zaawansowany skaner sieci TCP", "Skan pojedynczego hosta lub podsieci CIDR, identyfikacja urządzeń, eksport oraz kontrolowane akcje RDP i Offer Remote Assistance.", self._open_network_scanner, self.colors["teal"])
         self._action_card(actions, "Status techniczny TShark", "Pokaż pełną informację diagnostyczną komponentu.", lambda: self._run(network.tshark_status), self.colors["teal"])
 
     def _page_memory(self) -> None:
@@ -1165,7 +1177,7 @@ class EvidLockLightApp(ctk.CTk):
         features = [
             ("Nośniki", "WinAPI, lista woluminów, nośniki wirtualne, raport PDF i JSON."),
             ("Zabezpieczanie", "SHA-256, manifesty, weryfikacja, archiwizacja, kopia 1:1 i porównanie."),
-            ("Network", "Skaner TCP, status TShark i miejsce na rozbudowany Network Analyzer."),
+            ("Network", "Skaner TCP hosta i podsieci, DNS/FQDN, MAC, typ urządzenia, RDP, OfferRA i status TShark."),
             ("Pamięć", "Kontrola WinPmem i Volatility 3 oraz punkt uruchamiania analiz."),
             ("System", "Eksport rejestru Windows, logi Windows oraz zrzuty okien i pulpitu przez WinAPI."),
             ("Konsola", "Wbudowany interpreter komend programu, dostępny z menu."),

@@ -88,9 +88,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     net_parser = sub.add_parser("network", help="Network analyzer i skaner.")
     net_sub = net_parser.add_subparsers(dest="network_command", required=True)
-    scan = net_sub.add_parser("scan", help="Skan portów TCP.")
-    scan.add_argument("--host", required=True)
-    scan.add_argument("--ports", default="22,80,443,445,3389")
+    scan = net_sub.add_parser("scan", help="Zaawansowany skan hosta lub podsieci TCP.")
+    target_group = scan.add_mutually_exclusive_group(required=True)
+    target_group.add_argument("--host")
+    target_group.add_argument("--subnet")
+    scan.add_argument("--ports", default=network.PORT_PROFILES["Szybki"])
+    scan.add_argument("--timeout", type=float, default=.45)
+    scan.add_argument("--workers", type=int, default=32)
+    scan.add_argument("--include-offline", action="store_true")
     pcap = net_sub.add_parser("pcap", help="Podstawowa analiza PCAP przez TShark.")
     pcap.add_argument("path")
     pcap.add_argument("--out")
@@ -162,7 +167,7 @@ def main(argv: list[str] | None = None) -> int:
             result = readonly.check_readonly(args.path)
     elif args.command == "network":
         if args.network_command == "scan":
-            result = network.scan_tcp(args.host, network.parse_ports(args.ports))
+            result = network.scan_network(args.host or args.subnet, network.parse_ports(args.ports), args.timeout, args.workers, args.include_offline)
         elif args.network_command == "pcap":
             result = network.analyze_pcap_basic(args.path, args.out)
         elif args.network_command == "deps":

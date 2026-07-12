@@ -2,6 +2,10 @@
 
 ## 2026-07-12 - samodzielne repo i pełne moduły Windows
 
+- Rozbudowano Network do zaawansowanego skanera TCP dla pojedynczego adresu i podsieci CIDR.
+- Dodano profile portów, timeout, równoległość, ICMP, DNS/FQDN, nazwę komputera, MAC i heurystyczne rozpoznawanie typu urządzenia.
+- Dodano szczegółowy panel hosta oraz eksport skanu do JSON, CSV i profesjonalnego PDF.
+- Dodano kontrolowany RDP dla wykrytych komputerów Windows oraz pomoc techniczną wyłącznie przez `msra.exe /offerRA`; adres IP pomocy można wpisać ręcznie.
 - Podgląd informacji o nośnikach aktualizuje to samo okno natychmiast po zaznaczeniu, odznaczeniu lub odświeżeniu dysków.
 - Zmiana zestawu nośników unieważnia linki do poprzedniego PDF, aby nie otwierać raportu dla nieaktualnego wyboru.
 - Eksport dziennika TXT/JSON pokazuje potwierdzenie, liczbę wpisów, ścieżki plików i link `Otwórz katalog`.

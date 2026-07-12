@@ -89,6 +89,70 @@ def open_path(path: str | Path) -> None:
         raise OSError(f"ShellExecuteW nie otworzył ścieżki. Kod: {int(result)}")
 
 
+def launch_program(executable: str, parameters: str = "", elevate: bool = False) -> None:
+    """Uruchamia program systemowy przez ShellExecuteW."""
+
+    if not is_windows():
+        raise RuntimeError("Uruchamianie programów systemowych jest dostępne tylko w Windows.")
+    verb = "runas" if elevate else "open"
+    result = ctypes.windll.shell32.ShellExecuteW(None, verb, executable, parameters or None, None, 1)
+    if int(result) <= 32:
+        raise OSError(f"ShellExecuteW nie uruchomił programu {executable}. Kod: {int(result)}")
+
+
+def launch_remote_desktop(host: str) -> None:
+    """Otwiera klienta RDP dla jawnie wskazanego hosta."""
+
+    launch_program("mstsc.exe", f'/v:"{host}"')
+
+
+def launch_remote_assistance_offer(host: str) -> None:
+    """Uruchamia wyłącznie tryb Offer Remote Assistance dla technika."""
+
+    launch_program("msra.exe", f'/offerra "{host}"', elevate=True)
+
+
+def icmp_echo(ip_address: str, timeout_ms: int = 500) -> bool:
+    """Sprawdza host przez IcmpSendEcho bez uruchamiania ping.exe."""
+
+    if not is_windows():
+        return False
+    ws2_32, icmp = ctypes.windll.ws2_32, ctypes.windll.iphlpapi
+    ws2_32.inet_addr.argtypes = [ctypes.c_char_p]
+    ws2_32.inet_addr.restype = wintypes.ULONG
+    icmp.IcmpCreateFile.restype = wintypes.HANDLE
+    icmp.IcmpSendEcho.argtypes = [wintypes.HANDLE, wintypes.ULONG, ctypes.c_void_p, wintypes.WORD, ctypes.c_void_p, ctypes.c_void_p, wintypes.DWORD, wintypes.DWORD]
+    icmp.IcmpSendEcho.restype = wintypes.DWORD
+    icmp.IcmpCloseHandle.argtypes = [wintypes.HANDLE]
+    destination = ws2_32.inet_addr(str(ip_address).encode("ascii"))
+    handle = icmp.IcmpCreateFile()
+    if not handle or int(handle) == -1:
+        return False
+    reply = ctypes.create_string_buffer(128)
+    try:
+        return bool(icmp.IcmpSendEcho(handle, destination, None, 0, None, reply, len(reply), max(50, int(timeout_ms))))
+    finally:
+        icmp.IcmpCloseHandle(handle)
+
+
+def mac_address(ip_address: str) -> str:
+    """Pobiera MAC hosta z lokalnego segmentu przez SendARP."""
+
+    if not is_windows():
+        return ""
+    ws2_32, iphlpapi = ctypes.windll.ws2_32, ctypes.windll.iphlpapi
+    ws2_32.inet_addr.argtypes = [ctypes.c_char_p]
+    ws2_32.inet_addr.restype = wintypes.ULONG
+    destination = ws2_32.inet_addr(str(ip_address).encode("ascii"))
+    buffer = (ctypes.c_ubyte * 8)()
+    length = wintypes.ULONG(8)
+    iphlpapi.SendARP.argtypes = [wintypes.ULONG, wintypes.ULONG, ctypes.c_void_p, ctypes.POINTER(wintypes.ULONG)]
+    iphlpapi.SendARP.restype = wintypes.DWORD
+    if iphlpapi.SendARP(destination, 0, ctypes.byref(buffer), ctypes.byref(length)) != 0:
+        return ""
+    return "-".join(f"{buffer[index]:02X}" for index in range(min(6, int(length.value))))
+
+
 def _root_path(letter: str) -> str:
     letter = str(letter or "").strip()
     if len(letter) == 1:
