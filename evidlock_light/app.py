@@ -27,7 +27,7 @@ from PIL import Image
 from . import APP_NAME, APP_VERSION
 from . import cli, reports, themes, winapi
 from .config import CHECKSUM_REPORTS_DIR, EXPORTS_DIR, LOGS_DIR, ONE_CLICK_DIR, PDF_DIR, REPORTS_DIR, RUNTIME_DIR, SCREENSHOTS_DIR, ensure_runtime_dirs
-from .services import archive, copying, docs, hashing, journal, media, memory, network, registry, windows_logs
+from .services import archive, copying, docs, hashing, journal, media, memory, network, registry, system_report, windows_logs
 from .ui.copy_tool import CopyCompareDialog
 from .ui.archive_dialog import ArchiveDialog
 from .ui.action_icon import one_click_icon
@@ -60,7 +60,7 @@ QUICK_CATEGORIES = (
     "Dane i integralność",
     "Nośniki i raporty",
     "Sieć i pamięć",
-    "Windows i system",
+    "System",
 )
 
 
@@ -256,8 +256,8 @@ class EvidLockLightApp(ctk.CTk):
             "Zabezpieczanie": "Dane i integralność",
             "Network": "Sieć i pamięć",
             "Pamięć": "Sieć i pamięć",
-            "System": "Windows i system",
-            "Dziennik": "Windows i system",
+            "System": "System",
+            "Dziennik": "System",
         }.get(page)
         for name, button in self.nav_buttons.items():
             active = name == page or (name == "Narzędzia" and (page == "Narzędzia" or page_category is not None)) or (name == (self.selected_tool_category if page == "Narzędzia" else page_category))
@@ -281,7 +281,7 @@ class EvidLockLightApp(ctk.CTk):
             "Narzędzia": "Wszystkie funkcje uporządkowane w tej samej kategorii co na Dashboardzie.",
             "Network": "Zaawansowany skaner TCP hostów i podsieci, akcje zdalne oraz TShark.",
             "Pamięć": "Kontrola WinPmem i Volatility 3.",
-            "System": "Rejestr, logi Windows oraz zrzuty okien i pulpitu.",
+            "System": "Pełny raport systemowy, rejestr, logi Windows oraz zrzuty ekranu.",
             "Raporty": "Szybki dostęp do generatorów raportów.",
             "Dziennik": "Dziennik operacji programu, eksport TXT/JSON.",
             "Konsola": "Wbudowane CLI. Wszystkie opcje programu są dostępne jako komendy.",
@@ -588,11 +588,12 @@ class EvidLockLightApp(ctk.CTk):
             "pdf_tools": {"title": "Narzędzia PDF", "text": "Tworzenie bez nagłówka i szyfrowanie PDF AES-256.", "category": "Nośniki i raporty", "color": self.colors["purple"], "command": self._open_pdf_tools},
             "network": {"title": "Zaawansowany skaner sieci", "text": "Host lub podsieć, usługi, typ urządzenia i akcje zdalne.", "category": "Sieć i pamięć", "color": self.colors["teal"], "command": self._open_network_scanner},
             "memory": {"title": "Pamięć RAM", "text": "WinPmem, Volatility 3 i manager pamięci.", "category": "Sieć i pamięć", "color": self.colors["purple"], "command": lambda: self.show_page("Pamięć")},
-            "registry": {"title": "Eksport rejestru", "text": "Pełne okno hive, dane i raporty rejestru.", "category": "Windows i system", "color": self.colors["red"], "command": self._open_registry_dialog},
-            "windows_logs": {"title": "Logi Windows", "text": "Pełne okno opcji, EVTX i raportów logów.", "category": "Windows i system", "color": self.colors["red"], "command": self._open_windows_logs_dialog},
-            "journal": {"title": "Dziennik Light", "text": "Podgląd i eksport operacji programu.", "category": "Windows i system", "color": self.colors["accent"], "command": lambda: self.show_page("Dziennik")},
-            "capture": {"title": "Zrzut ekranu", "text": "Wybrane lub wszystkie okna oraz pulpit przez WinAPI.", "category": "Windows i system", "color": self.colors["accent"], "command": self._open_capture_dialog},
-            "console": {"title": "Konsola", "text": "Wbudowane CLI wszystkich modułów.", "category": "Windows i system", "color": self.colors["purple"], "command": lambda: self.show_page("Konsola")},
+            "system_report": {"title": "Pełny raport systemowy", "text": "Pełny raport znany z EvidLockV2: Windows, numery seryjne, sprzęt, sieć, programy i artefakty do PDF/CSV/JSON/TXT.", "category": "System", "color": self.colors["accent"], "command": lambda: self._run_progress("Pełny raport systemowy", lambda progress: system_report.generate_full_report(progress=progress), open_pdf=True)},
+            "registry": {"title": "Eksport rejestru", "text": "Pełne okno hive, dane i raporty rejestru.", "category": "System", "color": self.colors["red"], "command": self._open_registry_dialog},
+            "windows_logs": {"title": "Logi Windows", "text": "Pełne okno opcji, EVTX i raportów logów.", "category": "System", "color": self.colors["red"], "command": self._open_windows_logs_dialog},
+            "journal": {"title": "Dziennik Light", "text": "Podgląd i eksport operacji programu.", "category": "System", "color": self.colors["accent"], "command": lambda: self.show_page("Dziennik")},
+            "capture": {"title": "Zrzut ekranu", "text": "Wybrane lub wszystkie okna oraz pulpit przez WinAPI.", "category": "System", "color": self.colors["accent"], "command": self._open_capture_dialog},
+            "console": {"title": "Konsola", "text": "Wbudowane CLI wszystkich modułów.", "category": "System", "color": self.colors["purple"], "command": lambda: self.show_page("Konsola")},
         }
 
     def _default_quick_config(self) -> dict[str, list[str]]:
@@ -600,13 +601,15 @@ class EvidLockLightApp(ctk.CTk):
             "Dane i integralność": ["one_click", "copy", "compare", "hash", "archive", "readonly"],
             "Nośniki i raporty": ["media", "reports", "pdf_tools"],
             "Sieć i pamięć": ["network", "memory"],
-            "Windows i system": ["windows_logs", "registry", "capture"],
+            "System": ["system_report", "windows_logs", "registry", "capture"],
         }
 
     def _quick_config(self) -> dict[str, list[str]]:
         definitions = self._tool_definitions()
         settings = themes.load_settings()
         saved = settings.get("quick_actions_by_category")
+        if isinstance(saved, dict) and "System" not in saved and "Windows i system" in saved:
+            saved = {**saved, "System": ["system_report", *[item for item in saved["Windows i system"] if item != "system_report"]]}
         if not isinstance(saved, dict):
             legacy = settings.get("quick_actions")
             if isinstance(legacy, list):
@@ -617,6 +620,8 @@ class EvidLockLightApp(ctk.CTk):
         used: set[str] = set()
         for category in QUICK_CATEGORIES:
             values = saved.get(category, []) if isinstance(saved, dict) else []
+            if category == "System" and isinstance(values, list) and "system_report" not in values:
+                values = ["system_report", *values]
             if category == "Dane i integralność" and isinstance(values, list) and any(item in values for item in ("readonly_set", "readonly_clear")):
                 values = [item for item in values if item not in {"readonly_set", "readonly_clear"}]
                 if "readonly" not in values:
@@ -1011,6 +1016,7 @@ class EvidLockLightApp(ctk.CTk):
 
     def _page_system(self) -> None:
         actions = self._layout_with_output()
+        self._action_card(actions, "Pełny raport systemowy", "Windows, sprzęt, sieć, programy, sterowniki, procesy, artefakty śledcze, certyfikaty i USB do PDF/CSV/JSON/TXT.", lambda: self._run_progress("Pełny raport systemowy", lambda progress: system_report.generate_full_report(progress=progress), open_pdf=True), self.colors["accent"])
         self._detach_button(actions, "Narzędzia systemowe", self._build_tools_panel)
         self._action_card(actions, "Eksport rejestru Windows", "Otwórz pełne okno hive, gałęzi i raportów wieloformatowych.", self._open_registry_dialog)
         self._action_card(actions, "Eksport logów Windows", "Otwórz opcje zakresu, dzienników, EVTX i raportów.", self._open_windows_logs_dialog)

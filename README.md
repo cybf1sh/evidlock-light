@@ -122,6 +122,8 @@ Przy braku dodatkowego narzędzia program pokazuje jasny status `BRAK` i przycis
 
 ### Windows i system
 
+- **Pełny raport systemowy:** dane Windows, sprzętu, sieci, programów, sterowników, procesów, artefaktów śledczych, certyfikatów i USB eksportowane do PDF, CSV, JSON i TXT w `raporty/System`.
+
 - **Eksport rejestru Windows:** wybór hive i gałęzi, formaty HIVE/REG/CSV/XLSX/TXT/PDF/JSON, SHA-256 i read-only.
 - **Logi Windows:** tryb szybki i pełny, zakres 24h/7d/30d/cały lub własny, limit, sortowanie, wybór dzienników Application/Security/Setup/System, EVTX, CSV, XLSX, TXT, PDF, JSON i sumy SHA-256.
 - **Dziennik programu:** podgląd zdarzeń, eksport TXT i JSON oraz przycisk otwarcia katalogu z wynikami.

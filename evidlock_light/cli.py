@@ -9,7 +9,7 @@ from pathlib import Path
 from . import APP_NAME, APP_VERSION
 from . import winapi
 from .reports import write_json
-from .services import archive, copying, docs, hashing, journal, media, memory, network, one_click, pdf_tools, readonly, registry, windows_logs
+from .services import archive, copying, docs, hashing, journal, media, memory, network, one_click, pdf_tools, readonly, registry, system_report, windows_logs
 
 
 def _print(data: object, as_json: bool = False) -> None:
@@ -118,6 +118,8 @@ def build_parser() -> argparse.ArgumentParser:
     system_parser = sub.add_parser("system", help="Rejestr, logi, diagnostyka.")
     system_sub = system_parser.add_subparsers(dest="system_command", required=True)
     system_sub.add_parser("diagnostics")
+    full_report = system_sub.add_parser("full-report")
+    full_report.add_argument("--out")
     system_sub.add_parser("journal-export")
     reg = system_sub.add_parser("registry-export")
     reg.add_argument("--out")
@@ -188,6 +190,8 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == "system":
         if args.system_command == "diagnostics":
             result = {"app": APP_NAME, "version": APP_VERSION, "admin": winapi.is_admin(), "media_count": len(media.list_media())}
+        elif args.system_command == "full-report":
+            result = system_report.generate_full_report(args.out)
         elif args.system_command == "journal-export":
             result = journal.export_journal()
         elif args.system_command == "registry-export":
