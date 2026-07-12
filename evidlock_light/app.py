@@ -33,6 +33,7 @@ from .ui.archive_dialog import ArchiveDialog
 from .ui.action_icon import one_click_icon
 from .ui.advanced_network_dialog import AdvancedNetworkDialog
 from .ui.capture_dialog import CaptureDialog
+from .ui.close_dialog import CloseRequestDialog
 from .ui.drop_zone import DropZone
 from .ui.media_dialog import MediaDialog
 from .ui.memory_manager import MemoryManagerDialog
@@ -115,6 +116,7 @@ class EvidLockLightApp(ctk.CTk):
         self.capture_dialog: CaptureDialog | None = None
         self.journal_export_dialog: ManagedToplevel | None = None
         self.network_scanner_dialog: AdvancedNetworkDialog | None = None
+        self.close_dialog: CloseRequestDialog | None = None
         self._external_capture_active = False
         self.action_images: list[ctk.CTkImage] = []
         self.last_report_title = "Bieżący raport"
@@ -520,12 +522,29 @@ class EvidLockLightApp(ctk.CTk):
         return False
 
     def _request_close(self) -> None:
-        if not self._ensure_idle("zamknięcie aplikacji"):
+        if self.close_dialog is not None:
+            try:
+                if self.close_dialog.winfo_exists():
+                    present_toplevel(self.close_dialog, self)
+                    return
+            except Exception:
+                self.close_dialog = None
+
+        operation = self._active_operation()
+        if operation:
+            self._show_close_dialog(operation)
             return
-        if not messagebox.askyesno("Zamknąć EvidLock Light?", "Czy na pewno chcesz zamknąć program?", icon="warning", parent=self):
-            return
-        journal.log_event("INFO", "UI", "Zamknięto EvidLock Light")
-        super().destroy()
+        self._show_close_dialog(None)
+
+    def _show_close_dialog(self, operation: str | None) -> None:
+        def result(confirmed: bool) -> None:
+            self.close_dialog = None
+            if not confirmed:
+                return
+            journal.log_event("INFO", "UI", "Zamknięto EvidLock Light")
+            super(EvidLockLightApp, self).destroy()
+
+        self.close_dialog = CloseRequestDialog(self, self.colors, operation, result)
 
     def _visible_capture_windows(self) -> list[object]:
         result: list[object] = []

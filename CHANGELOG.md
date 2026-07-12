@@ -1,5 +1,9 @@
 # EvidLock Light - changelog
 
+## 2026-07-12 - potwierdzenie zamknięcia
+
+- Dodano modalne okno zamknięcia z logo EvidLock Light oraz nazwą aktywnej operacji blokującej zamknięcie.
+
 ## 2026-07-12 - samodzielne repo i pełne moduły Windows
 
 - Rozbudowano Network do zaawansowanego skanera TCP dla pojedynczego adresu i podsieci CIDR.
