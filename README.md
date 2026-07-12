@@ -242,6 +242,8 @@ Build tworzy aktualny plik EXE, zachowuje poprzedni oryginał i zapisuje kopię 
 .\build_exe.ps1 -Clean
 ```
 
+Do uruchomienia z Eksploratora Windows można użyć `Build_EvidLock_Light.cmd`. Wrapper zatrzymuje okno po zakończeniu, dzięki czemu wynik builda jest widoczny. Samo `Uruchom za pomocą PowerShell` zamyka okno po zakończeniu; w przypadku błędu skrypt pokazuje komunikat w osobnym oknie.
+
 Powstają:
 
 - `EvidLockLight.exe` - aktualny oryginał,

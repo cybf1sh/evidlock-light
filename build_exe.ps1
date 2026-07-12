@@ -1,15 +1,17 @@
 param(
-    [switch]$Clean
+    [switch]$Clean,
+    [switch]$PauseOnExit
 )
 
-$ErrorActionPreference = "Stop"
-$Root = Split-Path -Parent $MyInvocation.MyCommand.Path
-$Dist = Join-Path $Root "dist"
-$Build = Join-Path $Root "build"
-$ReleaseDir = Join-Path $Root "releases"
-$RootExe = Join-Path $Root "EvidLockLight.exe"
-$Stamp = Get-Date -Format "yyyyMMdd_HHmmss"
-$PreviousBackup = $null
+try {
+    $ErrorActionPreference = "Stop"
+    $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
+    $Dist = Join-Path $Root "dist"
+    $Build = Join-Path $Root "build"
+    $ReleaseDir = Join-Path $Root "releases"
+    $RootExe = Join-Path $Root "EvidLockLight.exe"
+    $Stamp = Get-Date -Format "yyyyMMdd_HHmmss"
+    $PreviousBackup = $null
 
 if (Get-Process -Name "EvidLockLight" -ErrorAction SilentlyContinue) {
     throw "EvidLockLight jest uruchomiony. Zamknij aplikacje przed rozpoczeciem buildu."
@@ -78,4 +80,24 @@ Write-Host "Oryginal: $RootExe"
 Write-Host "Kopia release: $ReleaseExe"
 if ($PreviousBackup) {
     Write-Host "Backup poprzedniej wersji: $PreviousBackup"
+}
+
+    if ($PauseOnExit) {
+        Read-Host "Build zakonczony. Nacisnij Enter, aby zamknac okno"
+    }
+}
+catch {
+    $message = "Build EvidLock Light nie powiodl sie." + [Environment]::NewLine + [Environment]::NewLine + $_.Exception.Message
+    Write-Host $message -ForegroundColor Red
+    try {
+        Add-Type -AssemblyName System.Windows.Forms
+        [System.Windows.Forms.MessageBox]::Show($message, "EvidLock Light - build", "OK", "Error") | Out-Null
+    }
+    catch {
+        # In a non-GUI environment the PowerShell text remains available.
+    }
+    if ($PauseOnExit) {
+        Read-Host "Nacisnij Enter, aby zamknac okno"
+    }
+    exit 1
 }
