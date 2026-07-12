@@ -6,7 +6,7 @@ from __future__ import annotations
 DOCUMENTS = [
     {
         "title": "Nośniki",
-        "body": "Lista dysków korzysta z WinAPI. Raport PDF opisuje literę, etykietę, system plików, rozmiar, wolne miejsce i typ nośnika.",
+        "body": "Lista dysków korzysta z WinAPI. Profesjonalny raport PDF ma osobne sekcje nośników, osadzony font Unicode i polskie znaki. Podgląd pozwala powiększać tekst, zapisać TXT, otworzyć katalog i bieżący PDF.",
     },
     {
         "title": "Network",
@@ -18,7 +18,15 @@ DOCUMENTS = [
     },
     {
         "title": "Zabezpieczenie danych",
-        "body": "Dostępne są SHA-256, manifest JSON, weryfikacja manifestu, archiwizacja ZIP, kopia 1:1 i porównanie A/B. Długie operacje pokazują pasek postępu i log. Kopia jest po zapisie weryfikowana przez SHA-256 i tworzy raport PDF, TXT oraz JSON.",
+        "body": "Dostępne są SHA-256 z raportem w raporty/suma-kontrolna, manifest JSON, archiwizacja ZIP AES-256 i 7z AES-256, kopia 1:1 i porównanie A/B. Hasła szyfrowania mają minimum 8 znaków.",
+    },
+    {
+        "title": "One-click",
+        "body": "Workflow One-click przyjmuje pliki i katalogi, ustawia read-only, liczy SHA-256 każdego pliku, tworzy tabelaryczny raport PDF oraz szyfrowane archiwum ZIP albo 7z. Wyniki znajdują się w raporty/One-click.",
+    },
+    {
+        "title": "Narzędzia PDF",
+        "body": "Tworzenie PDF bez nagłówka obsługuje tekst, DOCX, obrazy i istniejące PDF. Opcjonalne szyfrowanie oraz funkcja Szyfruj PDF używają AES-256 i wymagają hasła minimum 8 znaków. Pliki trafiają do raporty/PDF.",
     },
     {
         "title": "Dashboard i menu narzędzi",
@@ -46,7 +54,7 @@ DOCUMENTS = [
     },
     {
         "title": "Logi systemowe Windows",
-        "body": "Okno logów udostępnia tryb szybki i pełny, zakres czasu, własne daty, limit, sortowanie i wybór dzienników. Tryb pełny eksportuje EVTX; raporty obejmują CSV, XLSX, TXT, PDF i JSON z SHA-256.",
+        "body": "Okno logów udostępnia tryb szybki i pełny, zakres czasu, własne daty, limit, sortowanie i wybór dzienników. Bogaty raport PDF zawiera parametry, status EVTX, SHA-256 oraz próbkę najnowszych zdarzeń z komunikatami.",
     },
 ]
 

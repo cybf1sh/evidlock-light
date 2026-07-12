@@ -9,7 +9,7 @@ from pathlib import Path
 from . import APP_NAME, APP_VERSION
 from . import winapi
 from .reports import write_json
-from .services import archive, copying, docs, hashing, journal, media, memory, network, readonly, registry, windows_logs
+from .services import archive, copying, docs, hashing, journal, media, memory, network, one_click, pdf_tools, readonly, registry, windows_logs
 
 
 def _print(data: object, as_json: bool = False) -> None:
@@ -59,9 +59,23 @@ def build_parser() -> argparse.ArgumentParser:
     compare.add_argument("--a", required=True)
     compare.add_argument("--b", required=True)
 
-    archive_parser = sub.add_parser("archive", help="Archiwizacja ZIP.")
-    archive_parser.add_argument("--src", required=True)
+    archive_parser = sub.add_parser("archive", help="Archiwizacja ZIP/7z.")
+    archive_parser.add_argument("--src", required=True, action="append")
     archive_parser.add_argument("--out", required=True)
+    archive_parser.add_argument("--format", choices=["zip", "7z"], default="zip")
+    archive_parser.add_argument("--password")
+
+    pdf_parser = sub.add_parser("pdf", help="Tworzenie i szyfrowanie PDF.")
+    pdf_sub = pdf_parser.add_subparsers(dest="pdf_command", required=True)
+    pdf_create = pdf_sub.add_parser("create")
+    pdf_create.add_argument("--src", required=True); pdf_create.add_argument("--password", default=""); pdf_create.add_argument("--out")
+    pdf_encrypt = pdf_sub.add_parser("encrypt")
+    pdf_encrypt.add_argument("--src", required=True); pdf_encrypt.add_argument("--password", required=True); pdf_encrypt.add_argument("--out")
+
+    one_click_parser = sub.add_parser("one-click", help="Kompletne zabezpieczenie danych.")
+    one_click_parser.add_argument("--src", required=True, action="append")
+    one_click_parser.add_argument("--password", required=True)
+    one_click_parser.add_argument("--format", choices=["zip", "7z"], default="zip")
 
     ro_parser = sub.add_parser("readonly", help="Atrybut tylko do odczytu.")
     ro_sub = ro_parser.add_subparsers(dest="readonly_command", required=True)
@@ -126,7 +140,7 @@ def main(argv: list[str] | None = None) -> int:
             result = {"pdf": str(media.report_media(args.drive, args.out))}
     elif args.command == "hash":
         if args.hash_command == "file":
-            result = {"path": args.path, "sha256": hashing.sha256_file(args.path)}
+            result = hashing.file_hash_report(args.path)
         elif args.hash_command == "manifest":
             result = {"manifest": str(hashing.save_manifest(args.path, args.out))}
         else:
@@ -134,7 +148,11 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == "copy":
         result = copying.copy_1to1(args.src, args.dst) if args.copy_command == "one-to-one" else copying.compare_paths(args.a, args.b)
     elif args.command == "archive":
-        result = {"archive": str(archive.create_zip(args.src, args.out))}
+        result = archive.create_encrypted_archive(args.src, args.out, args.format, args.password) if args.password else {"archive": str(archive.create_zip(args.src[0], args.out))}
+    elif args.command == "pdf":
+        result = pdf_tools.create_pdf_from_file(args.src, args.password, args.out) if args.pdf_command == "create" else pdf_tools.encrypt_pdf(args.src, args.password, args.out)
+    elif args.command == "one-click":
+        result = one_click.secure(args.src, args.password, args.format)
     elif args.command == "readonly":
         if args.readonly_command == "set":
             result = readonly.apply_readonly(args.path)

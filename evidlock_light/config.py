@@ -12,6 +12,9 @@ PACKAGE_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = PACKAGE_DIR.parent
 RUNTIME_DIR = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else PROJECT_DIR
 REPORTS_DIR = RUNTIME_DIR / "raporty"
+PDF_DIR = REPORTS_DIR / "PDF"
+CHECKSUM_REPORTS_DIR = REPORTS_DIR / "suma-kontrolna"
+ONE_CLICK_DIR = REPORTS_DIR / "One-click"
 LOGS_DIR = RUNTIME_DIR / "logi"
 EXPORTS_DIR = RUNTIME_DIR / "eksport"
 DOCS_DIR = RUNTIME_DIR / "docs"
@@ -20,7 +23,7 @@ DOCS_DIR = RUNTIME_DIR / "docs"
 def ensure_runtime_dirs() -> None:
     """Tworzy lokalne katalogi wynikowe używane przez Light."""
 
-    for directory in (REPORTS_DIR, LOGS_DIR, EXPORTS_DIR, DOCS_DIR):
+    for directory in (REPORTS_DIR, PDF_DIR, CHECKSUM_REPORTS_DIR, ONE_CLICK_DIR, LOGS_DIR, EXPORTS_DIR, DOCS_DIR):
         directory.mkdir(parents=True, exist_ok=True)
 
 

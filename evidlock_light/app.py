@@ -8,23 +8,33 @@ panel wyników i wbudowaną konsolę CLI.
 from __future__ import annotations
 
 import contextlib
+import getpass
+import importlib.metadata
 import io
 import json
+import os
+import platform
 import shlex
+import shutil
+import sys
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox
 
 import customtkinter as ctk
+from PIL import Image
 
 from . import APP_NAME, APP_VERSION
-from . import cli, themes, winapi
-from .config import ensure_runtime_dirs
+from . import cli, reports, themes, winapi
+from .config import CHECKSUM_REPORTS_DIR, EXPORTS_DIR, LOGS_DIR, ONE_CLICK_DIR, PDF_DIR, REPORTS_DIR, RUNTIME_DIR, ensure_runtime_dirs
 from .services import archive, capture, copying, docs, hashing, journal, media, memory, network, registry, windows_logs
 from .ui.copy_tool import CopyCompareDialog
+from .ui.archive_dialog import ArchiveDialog
 from .ui.drop_zone import DropZone
 from .ui.media_dialog import MediaDialog
 from .ui.memory_manager import MemoryManagerDialog
+from .ui.one_click_dialog import OneClickDialog
+from .ui.pdf_tools_dialog import PdfToolsDialog
 from .ui.logo import EvidLockLogo
 from .ui.progress import ProgressDialog
 from .ui.report_window import ReportWindow
@@ -95,6 +105,10 @@ class EvidLockLightApp(ctk.CTk):
         self.windows_logs_dialog: WindowsLogsDialog | None = None
         self.readonly_dialog: ReadOnlyDialog | None = None
         self.memory_manager_dialog: MemoryManagerDialog | None = None
+        self.archive_dialog: ArchiveDialog | None = None
+        self.pdf_tools_dialog: PdfToolsDialog | None = None
+        self.one_click_dialog: OneClickDialog | None = None
+        self.action_images: list[ctk.CTkImage] = []
         self.last_report_title = "Bieżący raport"
         self.last_report_data: object = {"status": "Brak wyników do wyświetlenia."}
         self.quick_drag_category: str | None = None
@@ -198,8 +212,10 @@ class EvidLockLightApp(ctk.CTk):
         )
         self.skin_menu.set(themes.SKIN_LABELS[self.skin])
         self.skin_menu.pack(side=tk.LEFT, padx=(0, 8), pady=8)
+        one_click_icon = self._action_icon("one_click", 20)
+        ctk.CTkButton(controls, text="One-click", image=one_click_icon, compound="left", width=112, height=34, command=self._open_one_click_dialog, fg_color=self.colors["green"]).pack(side=tk.LEFT, padx=(0, 8), pady=8)
         ctk.CTkButton(controls, text="Konsola", width=100, height=34, command=lambda: self.show_page("Konsola")).pack(side=tk.LEFT, padx=(0, 8), pady=8)
-        ctk.CTkButton(controls, text="O programie", width=112, height=34, command=lambda: self.show_page("O programie")).pack(side=tk.LEFT, padx=(0, 8), pady=8)
+        ctk.CTkLabel(controls, text=f"Wersja {APP_VERSION}", text_color=self.colors["muted"], font=(FONT, 9, "bold")).pack(side=tk.LEFT, padx=(2, 10))
 
         self.content = ctk.CTkFrame(main, fg_color="transparent")
         self.content.grid(row=1, column=0, sticky="nsew", padx=18, pady=(0, 18))
@@ -211,6 +227,16 @@ class EvidLockLightApp(ctk.CTk):
         button_theme["fg_color"] = self.colors["accent"]
         button_theme["hover_color"] = self.colors["accent_hover"]
         button_theme["text_color"] = "#ffffff"
+
+    def _action_icon(self, name: str, size: int = 28) -> ctk.CTkImage | None:
+        path = Path(__file__).resolve().parent / "assets" / "action_icons" / f"{name}.png"
+        try:
+            image = Image.open(path).convert("RGBA")
+            result = ctk.CTkImage(light_image=image, dark_image=image, size=(size, size))
+            self.action_images.append(result)
+            return result
+        except OSError:
+            return None
 
     def show_page(self, page: str) -> None:
         self.current_page = page
@@ -293,6 +319,10 @@ class EvidLockLightApp(ctk.CTk):
         self.windows_logs_dialog = None
         self.readonly_dialog = None
         self.memory_manager_dialog = None
+        self.archive_dialog = None
+        self.pdf_tools_dialog = None
+        self.one_click_dialog = None
+        self.action_images.clear()
         for child in self.winfo_children():
             child.destroy()
         self.nav_buttons.clear()
@@ -427,12 +457,19 @@ class EvidLockLightApp(ctk.CTk):
             self._write({"błąd": str(exc)})
             journal.log_event("BŁĄD", self.current_page, str(exc))
 
-    def _run_progress(self, title: str, worker) -> None:
+    def _run_progress(self, title: str, worker, open_pdf: bool = False) -> None:
         dialog = ProgressDialog(self, title, self.colors, FONT)
         self.detached_windows.append(dialog)
 
         def done(result) -> None:
             self._write(result)
+            if open_pdf:
+                pdf_path = reports.find_pdf(result)
+                if pdf_path:
+                    try:
+                        reports.open_pdf(pdf_path)
+                    except Exception as exc:
+                        messagebox.showwarning("Raport PDF", f"Raport zapisano, ale nie udało się go otworzyć:\n{exc}", parent=self)
             journal.log_event("OK", self.current_page, title, {"result": self._compact_result(result)})
 
         dialog.start(worker, on_done=done)
@@ -451,15 +488,17 @@ class EvidLockLightApp(ctk.CTk):
         """Jedno źródło definicji dla panelu narzędzi i Szybkich akcji."""
 
         return {
+            "one_click": {"title": "One-click", "text": "Read-only, SHA-256, raport PDF i szyfrowane archiwum.", "category": "Dane i integralność", "color": self.colors["green"], "command": self._open_one_click_dialog, "icon": "one_click"},
             "copy": {"title": "Kopia 1:1", "text": "Kopia z metadanymi, SHA-256 i raportem.", "category": "Dane i integralność", "color": self.colors["green"], "command": self._copy_1to1},
             "compare": {"title": "Porównaj A/B", "text": "Porównanie plików lub katalogów z raportem.", "category": "Dane i integralność", "color": self.colors["teal"], "command": self._compare},
-            "archive": {"title": "Archiwizacja ZIP", "text": "Archiwum danych z paskiem postępu.", "category": "Dane i integralność", "color": self.colors["purple"], "command": self._archive},
+            "archive": {"title": "Archiwizuj", "text": "ZIP AES-256 lub 7z z hasłem minimum 8 znaków.", "category": "Dane i integralność", "color": self.colors["purple"], "command": self._open_archive_dialog},
             "hash": {"title": "SHA-256 pliku", "text": "Obliczenie skrótu wybranego pliku.", "category": "Dane i integralność", "color": self.colors["accent"], "command": self._hash_file},
             "manifest": {"title": "Manifest katalogu", "text": "Lista plików i sum SHA-256 w JSON.", "category": "Dane i integralność", "color": self.colors["accent"], "command": self._manifest},
             "readonly": {"title": "Ochrona read-only", "text": "Sprawdź, ustaw lub usuń atrybut tylko do odczytu.", "category": "Dane i integralność", "color": self.colors["green"], "command": self._open_readonly_dialog},
             "media": {"title": "Informacje o nośnikach", "text": "Okno dysków z ikonami, zajętością i raportem.", "category": "Nośniki i raporty", "color": self.colors["accent"], "command": self._open_media_dialog},
             "media_report": {"title": "Raport nośników", "text": "Raport PDF informacji o nośnikach.", "category": "Nośniki i raporty", "color": self.colors["purple"], "command": self._media_report},
             "reports": {"title": "Raporty", "text": "Otwórz centralny panel raportów.", "category": "Nośniki i raporty", "color": self.colors["red"], "command": lambda: self.show_page("Raporty")},
+            "pdf_tools": {"title": "Narzędzia PDF", "text": "Tworzenie bez nagłówka i szyfrowanie PDF AES-256.", "category": "Nośniki i raporty", "color": self.colors["purple"], "command": self._open_pdf_tools},
             "network": {"title": "Network Analyzer", "text": "Skaner TCP i narzędzia TShark.", "category": "Sieć i pamięć", "color": self.colors["teal"], "command": lambda: self.show_page("Network")},
             "memory": {"title": "Pamięć RAM", "text": "WinPmem, Volatility 3 i manager pamięci.", "category": "Sieć i pamięć", "color": self.colors["purple"], "command": lambda: self.show_page("Pamięć")},
             "registry": {"title": "Eksport rejestru", "text": "Pełne okno hive, dane i raporty rejestru.", "category": "Windows i system", "color": self.colors["red"], "command": self._open_registry_dialog},
@@ -471,8 +510,8 @@ class EvidLockLightApp(ctk.CTk):
 
     def _default_quick_config(self) -> dict[str, list[str]]:
         return {
-            "Dane i integralność": ["copy", "compare", "hash", "archive", "readonly"],
-            "Nośniki i raporty": ["media", "reports"],
+            "Dane i integralność": ["one_click", "copy", "compare", "hash", "archive", "readonly"],
+            "Nośniki i raporty": ["media", "reports", "pdf_tools"],
             "Sieć i pamięć": ["network", "memory"],
             "Windows i system": ["windows_logs", "registry", "capture"],
         }
@@ -495,6 +534,8 @@ class EvidLockLightApp(ctk.CTk):
                 values = [item for item in values if item not in {"readonly_set", "readonly_clear"}]
                 if "readonly" not in values:
                     values.append("readonly")
+            if category == "Dane i integralność" and isinstance(values, list) and "one_click" not in values:
+                values = ["one_click", *values]
             for tool_id in values if isinstance(values, list) else []:
                 if tool_id in definitions and definitions[tool_id]["category"] == category and tool_id not in used:
                     result[category].append(tool_id)
@@ -580,6 +621,8 @@ class EvidLockLightApp(ctk.CTk):
                 card.pack_propagate(False)
                 ctk.CTkFrame(card, width=5, fg_color=definition["color"], corner_radius=3).pack(side=tk.LEFT, fill=tk.Y, pady=6)
                 ctk.CTkButton(card, text="Uruchom", width=86, height=30, command=definition["command"], fg_color=definition["color"]).pack(side=tk.RIGHT, padx=10)
+                if definition.get("icon"):
+                    ctk.CTkLabel(card, text="", image=self._action_icon(definition["icon"], 30), width=36).pack(side=tk.LEFT, padx=(8, 0))
                 body = ctk.CTkFrame(card, fg_color="transparent")
                 body.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10, pady=8)
                 ctk.CTkLabel(body, text=definition["title"], text_color=self.colors["text"], font=(FONT, 11, "bold"), anchor="w").pack(fill=tk.X)
@@ -793,6 +836,8 @@ class EvidLockLightApp(ctk.CTk):
             tile.pack_propagate(False)
             ctk.CTkFrame(tile, width=4, fg_color=definition["color"], corner_radius=2).pack(side=tk.LEFT, fill=tk.Y, pady=5)
             ctk.CTkButton(tile, text="Otwórz", width=76, height=30, command=definition["command"], fg_color=definition["color"]).pack(side=tk.RIGHT, padx=9)
+            if definition.get("icon"):
+                ctk.CTkLabel(tile, text="", image=self._action_icon(definition["icon"], 28), width=34).pack(side=tk.LEFT, padx=(8, 0))
             body = ctk.CTkFrame(tile, fg_color="transparent")
             body.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10, pady=8)
             ctk.CTkLabel(body, text=definition["title"], text_color=self.colors["text"], font=(FONT, 12, "bold"), anchor="w").pack(fill=tk.X)
@@ -883,6 +928,7 @@ class EvidLockLightApp(ctk.CTk):
         frame.grid(row=0, column=0, sticky="nsew")
         parent.grid_rowconfigure(0, weight=1)
         self._action_card(frame, "Bieżący raport", "Jedno odświeżane okno wyników z zapisem bieżących danych do PDF.", self.show_report, self.colors["accent"])
+        self._action_card(frame, "Narzędzia PDF", "Tworzenie PDF bez nagłówka i szyfrowanie AES-256 z hasłem minimum 8 znaków.", self._open_pdf_tools, self.colors["purple"])
         self._action_card(frame, "Raport nośników PDF", "Raport generowany przez moduł raportów Light.", self._media_report)
         self._action_card(frame, "Dane nośników JSON", "Eksport danych WinAPI w formacie JSON.", lambda: self._run(lambda: {"json": str(media.export_media_json())}))
         self._action_card(frame, "Eksport dziennika TXT/JSON", "Raport z dziennika operacji programu.", lambda: self._run(journal.export_journal))
@@ -1007,6 +1053,10 @@ class EvidLockLightApp(ctk.CTk):
             "kopia 1:1, porównanie A/B, raporty PDF/JSON, rejestr Windows, logi Windows, "
             "network, pamięć RAM, read-only, zrzut głównego okna i tryb administratora.\n\n"
             "Konsola jest częścią programu i daje dostęp do tych samych modułów bez osobnego EXE CLI."
+            "\n\nTwórca: Mirosław Bielicki (CybF1sh)\n"
+            "Kierunek: Zwalczanie Cyberprzestępczości\n"
+            "Rok: 2026\n"
+            "GitHub: https://github.com/cybf1sh/evidlock"
         )
         self._set_box_text(box, text)
 
@@ -1019,6 +1069,9 @@ class EvidLockLightApp(ctk.CTk):
             ("System", "Eksport rejestru Windows, logi Windows, zrzut głównego okna."),
             ("Konsola", "Wbudowany interpreter komend programu, dostępny z menu."),
             ("Raporty", "PDF i JSON generowane przez moduły usługowe."),
+            ("One-click", "Read-only, SHA-256, profesjonalny PDF i szyfrowane archiwum."),
+            ("PDF", "Tworzenie bez nagłówka oraz szyfrowanie AES-256."),
+            ("Archiwizuj", "ZIP AES-256 i 7z AES-256 z hasłem minimum 8 znaków."),
             ("Tryb admina", "Uruchamianie z podwyższonymi uprawnieniami przez WinAPI."),
         ]
         box = self._tab_textbox(parent)
@@ -1049,8 +1102,12 @@ class EvidLockLightApp(ctk.CTk):
     def _fill_diag_tab(self, parent) -> None:
         parent.grid_columnconfigure(0, weight=1)
         parent.grid_rowconfigure(1, weight=1)
-        ctk.CTkButton(parent, text="Odśwież diagnostykę", width=170, command=lambda: render()).grid(row=0, column=0, sticky="w", padx=14, pady=(14, 0))
+        toolbar = ctk.CTkFrame(parent, fg_color="transparent")
+        toolbar.grid(row=0, column=0, sticky="ew", padx=14, pady=(14, 0))
+        ctk.CTkButton(toolbar, text="Odśwież diagnostykę", width=170, command=lambda: render()).pack(side=tk.LEFT)
+        ctk.CTkButton(toolbar, text="Kopiuj dane", width=120, command=lambda: copy_data()).pack(side=tk.LEFT, padx=8)
         box = self._tab_textbox(parent, row=1)
+        current = {"text": ""}
 
         def render() -> None:
             data = self._diagnostics()
@@ -1068,8 +1125,22 @@ class EvidLockLightApp(ctk.CTk):
                 "",
                 "TShark:",
                 json.dumps(data["tshark"], ensure_ascii=False, indent=2),
+                "",
+                "System i środowisko:",
+                json.dumps(data["system"], ensure_ascii=False, indent=2),
+                "",
+                "Katalogi robocze:",
+                json.dumps(data["paths"], ensure_ascii=False, indent=2),
+                "",
+                "Biblioteki:",
+                json.dumps(data["libraries"], ensure_ascii=False, indent=2),
             ]
-            self._set_box_text(box, "\n".join(lines))
+            current["text"] = "\n".join(lines)
+            self._set_box_text(box, current["text"])
+
+        def copy_data() -> None:
+            self.clipboard_clear(); self.clipboard_append(current["text"]); self.update_idletasks()
+            messagebox.showinfo("Diagnostyka", "Dane diagnostyczne skopiowano do schowka.", parent=self)
 
         render()
 
@@ -1138,16 +1209,14 @@ class EvidLockLightApp(ctk.CTk):
             self._run_progress(
                 "Obliczanie SHA-256",
                 lambda progress: self._hash_worker(path, progress),
+                open_pdf=True,
             )
 
     def _hash_worker(self, path: str, progress) -> dict:
         progress(5, "Otwieranie pliku")
-        value = hashing.sha256_file(
-            path,
-            callback=lambda done, total: progress(5 + 90 * done / total, f"Obliczanie SHA-256: {done} / {total} bajtów"),
-        )
-        progress(100, "SHA-256 obliczony")
-        return {"path": path, "sha256": value}
+        result = hashing.file_hash_report(path, callback=lambda done, total: progress(5 + 85 * done / total, f"Obliczanie SHA-256: {done} / {total} bajtów"))
+        progress(100, "SHA-256 i raport PDF zostały zapisane")
+        return result
 
     def _manifest(self) -> None:
         path = next((item for item in self.dropped_paths if Path(item).is_dir()), "")
@@ -1260,6 +1329,26 @@ class EvidLockLightApp(ctk.CTk):
             self.memory_manager_dialog.file_b.set(self.dropped_paths[1])
         self.detached_windows.append(self.memory_manager_dialog)
 
+    def _open_archive_dialog(self) -> None:
+        if self.archive_dialog is not None and self.archive_dialog.winfo_exists():
+            self.archive_dialog.lift(); self.archive_dialog.focus_force(); return
+        self.archive_dialog = ArchiveDialog(self, self.colors, initial_sources=self.dropped_paths, on_result=lambda result: self._write(result, "Archiwizacja szyfrowana"))
+        self.detached_windows.append(self.archive_dialog)
+
+    def _open_pdf_tools(self) -> None:
+        if self.pdf_tools_dialog is not None and self.pdf_tools_dialog.winfo_exists():
+            self.pdf_tools_dialog.lift(); self.pdf_tools_dialog.focus_force(); return
+        self.pdf_tools_dialog = PdfToolsDialog(self, self.colors, on_result=lambda result: self._write(result, "Narzędzia PDF"))
+        if self.dropped_paths:
+            self.pdf_tools_dialog.source.set(self.dropped_paths[0])
+        self.detached_windows.append(self.pdf_tools_dialog)
+
+    def _open_one_click_dialog(self) -> None:
+        if self.one_click_dialog is not None and self.one_click_dialog.winfo_exists():
+            self.one_click_dialog.lift(); self.one_click_dialog.focus_force(); return
+        self.one_click_dialog = OneClickDialog(self, self.colors, initial_sources=self.dropped_paths, on_result=lambda result: self._write(result, "One-click"))
+        self.detached_windows.append(self.one_click_dialog)
+
     def _install_tshark(self) -> None:
         if messagebox.askyesno("Instalacja TShark", "Zostanie uruchomiona instalacja oficjalnego pakietu Wireshark przez winget. Kontynuować?", parent=self):
             self._run(network.install_tshark)
@@ -1294,6 +1383,11 @@ class EvidLockLightApp(ctk.CTk):
             messagebox.showerror(APP_NAME, str(exc))
 
     def _diagnostics(self) -> dict:
+        libraries = {}
+        for package in ("customtkinter", "Pillow", "reportlab", "pypdf", "cryptography", "pyzipper", "py7zr", "openpyxl", "tkinterdnd2"):
+            try: libraries[package] = importlib.metadata.version(package)
+            except importlib.metadata.PackageNotFoundError: libraries[package] = "BRAK"
+        disk = shutil.disk_usage(RUNTIME_DIR)
         return {
             "app": APP_NAME,
             "version": APP_VERSION,
@@ -1304,6 +1398,19 @@ class EvidLockLightApp(ctk.CTk):
             "media_count": len(media.list_media()),
             "memory_deps": memory.dependency_status(),
             "tshark": network.tshark_status(),
+            "system": {
+                "system": platform.system(), "release": platform.release(), "version": platform.version(),
+                "architecture": platform.machine(), "computer": platform.node(), "user": getpass.getuser(),
+                "python": sys.version, "executable": sys.executable, "frozen": bool(getattr(sys, "frozen", False)),
+                "tk": self.tk.call("info", "patchlevel"), "single_instance": True,
+                "disk_total": disk.total, "disk_free": disk.free,
+            },
+            "paths": {
+                "runtime": str(RUNTIME_DIR), "reports": str(REPORTS_DIR), "pdf": str(PDF_DIR),
+                "checksum_reports": str(CHECKSUM_REPORTS_DIR), "one_click": str(ONE_CLICK_DIR),
+                "exports": str(EXPORTS_DIR), "logs": str(LOGS_DIR), "cwd": os.getcwd(),
+            },
+            "libraries": libraries,
         }
 
 

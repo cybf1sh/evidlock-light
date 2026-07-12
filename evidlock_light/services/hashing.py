@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import datetime as dt
 from pathlib import Path
+
+from .. import reports
+from ..config import CHECKSUM_REPORTS_DIR
 
 
 def sha256_file(path: str | Path, chunk_size: int = 1024 * 1024 * 4, callback=None) -> str:
@@ -63,3 +67,25 @@ def verify_manifest(manifest_path: str | Path, root: str | Path | None = None) -
             result["ok"] = False
             result["changed"].append(item["path"])
     return result
+
+
+def file_hash_report(path: str | Path, callback=None) -> dict:
+    target = Path(path).resolve()
+    if not target.is_file():
+        raise FileNotFoundError(str(target))
+    digest = sha256_file(target, callback=callback)
+    stat = target.stat()
+    stamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+    pdf_path = CHECKSUM_REPORTS_DIR / f"sha256_{target.stem}_{stamp}.pdf"
+    reports.write_professional_pdf(
+        "Raport sumy kontrolnej SHA-256",
+        [{"title": "Identyfikacja pliku", "rows": [
+            ("Nazwa pliku", target.name), ("Pełna ścieżka", str(target)), ("Rozmiar [B]", stat.st_size),
+            ("Data modyfikacji", dt.datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M:%S")),
+            ("Algorytm", "SHA-256"), ("Suma kontrolna", digest),
+        ]}],
+        pdf_path,
+        subtitle="Raport integralności pojedynczego pliku.",
+        metadata={"Status": "Obliczono poprawnie"},
+    )
+    return {"path": str(target), "sha256": digest, "pdf": str(pdf_path)}

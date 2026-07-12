@@ -5,6 +5,7 @@ releases/
 logi/
 raporty/
 eksport/
+tmp/
 __pycache__/
 *.pyc
 *.exe

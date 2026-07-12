@@ -103,8 +103,39 @@ def _reports(output: Path, options: dict, sheets: dict[str,list[dict]], evtx: li
     for label,_channel in options.get("logs",[]):
         item=next((entry for entry in evtx if entry["label"]==label),{}); summary.append([label,len(sheets.get(label,[])),item.get("status"),item.get("sha256")])
     workbook.save(xlsx_path)
-    rows=[("Tryb",str(options.get("mode"))),("Zakres",str(options.get("range"))),("Liczba rekordów",str(len(all_records)))]
-    rows.extend((name,f"{len(records)} rekordów") for name,records in sheets.items()); reports.write_simple_pdf("EvidLock Light - logi systemowe Windows",rows,pdf_path)
+    sections=[{
+        "title":"Podsumowanie eksportu",
+        "rows":[
+            ("Tryb",str(options.get("mode"))),
+            ("Zakres czasu",str(options.get("range"))),
+            ("Sortowanie",str(options.get("sort"))),
+            ("Limit na dziennik",str(options.get("limit"))),
+            ("Łączna liczba zdarzeń",str(len(all_records))),
+        ],
+    },{
+        "title":"Pliki EVTX i integralność",
+        "table":[[item.get("label"),item.get("channel"),item.get("status"),item.get("records"),item.get("sha256") or item.get("message") or "-"] for item in evtx],
+        "headers":["Dziennik","Kanał","Status","Rekordy","SHA-256 / informacja"],
+        "widths":[75,85,55,50,300],
+        "wide":True,
+    }]
+    for name,records in sheets.items():
+        sample=records[:25]
+        sections.append({
+            "title":f"Dziennik {name} - {len(records)} zdarzeń",
+            "text":"Poniżej pokazano maksymalnie 25 najnowszych rekordów. Pełne dane znajdują się w CSV, XLSX i JSON.",
+            "table":[[record.get("TimeCreated"),record.get("Id"),record.get("Level"),record.get("Provider"),record.get("Message")] for record in sample],
+            "headers":["Czas","ID","Poziom","Dostawca","Komunikat"],
+            "widths":[110,45,45,120,245],
+            "wide":True,
+        })
+    reports.write_professional_pdf(
+        "Eksport logów systemowych Windows",
+        sections,
+        pdf_path,
+        subtitle="Raport zdarzeń, stanu eksportu EVTX i integralności plików wynikowych.",
+        metadata={"Komputer":os.environ.get("COMPUTERNAME","Brak danych"),"Administrator":"Tak" if winapi.is_admin() else "Nie","Liczba kanałów":len(sheets)},
+    )
     checksum=output/f"logi_windows_sumy_sha256_{stamp}.txt"; files=[json_path,txt_path,xlsx_path,pdf_path,*[Path(item["path"]) for item in evtx if item.get("path")]]
     checksum.write_text("\n".join(f"{sha256_file(path)}  {path.name}" for path in files if path.exists()),encoding="ascii")
     for path in [*files,checksum,*output.glob("*.csv")]:

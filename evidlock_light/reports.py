@@ -1,7 +1,9 @@
-"""Raporty PDF/JSON dla EvidLock Light."""
+"""Profesjonalne raporty PDF/JSON ze spójną obsługą Unicode."""
 
 from __future__ import annotations
 
+import datetime as dt
+import html
 import json
 import os
 from pathlib import Path
@@ -17,66 +19,147 @@ def write_json(data: object, path: str | Path | None = None, prefix: str = "rapo
     return output
 
 
-def write_simple_pdf(title: str, rows: Iterable[tuple[str, str]], path: str | Path | None = None) -> Path:
-    """Tworzy czytelny raport PDF bez zależności od GUI."""
-
-    from reportlab.lib.pagesizes import A4
+def _register_unicode_fonts() -> tuple[str, str]:
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
-    from reportlab.pdfgen import canvas
+
+    regular_candidates = [Path("C:/Windows/Fonts/segoeui.ttf"), Path("C:/Windows/Fonts/arial.ttf"), Path("C:/Windows/Fonts/calibri.ttf")]
+    bold_candidates = [Path("C:/Windows/Fonts/segoeuib.ttf"), Path("C:/Windows/Fonts/arialbd.ttf"), Path("C:/Windows/Fonts/calibrib.ttf")]
+    regular = next((path for path in regular_candidates if path.exists()), None)
+    bold = next((path for path in bold_candidates if path.exists()), regular)
+    if regular:
+        try:
+            pdfmetrics.registerFont(TTFont("EvidLock-Regular", str(regular)))
+            pdfmetrics.registerFont(TTFont("EvidLock-Bold", str(bold)))
+            return "EvidLock-Regular", "EvidLock-Bold"
+        except Exception:
+            pass
+    return "Helvetica", "Helvetica-Bold"
+
+
+def _paragraph(value: object, style):
+    from reportlab.platypus import Paragraph
+
+    text = html.escape(str(value if value is not None else "")).replace("\n", "<br/>")
+    return Paragraph(text or " ", style)
+
+
+def write_professional_pdf(
+    title: str,
+    sections: list[dict],
+    path: str | Path | None = None,
+    subtitle: str = "",
+    metadata: dict | None = None,
+) -> Path:
+    """Tworzy raport z sekcjami, tabelami, stopką i osadzonym fontem Unicode."""
+
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.lib.units import mm
+    from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
     output = Path(path) if path else default_report_path(title)
     output.parent.mkdir(parents=True, exist_ok=True)
-    font_name = _register_unicode_font()
-    pdf = canvas.Canvas(str(output), pagesize=A4)
-    width, height = A4
-    y = height - 48
-    pdf.setFillColorRGB(0.06, 0.09, 0.16)
-    pdf.setFont(font_name, 16)
-    pdf.drawString(42, y, title[:90])
-    y -= 28
-    pdf.setStrokeColorRGB(0.85, 0.89, 0.94)
-    pdf.line(42, y + 10, width - 42, y + 10)
-    pdf.setFont(font_name, 9)
-    for key, value in rows:
-        if not key and not value:
-            y -= 8
-            continue
-        text = f"{key}: {value}"
-        for line in _wrap(text, 112):
-            if y < 48:
-                pdf.showPage()
-                pdf.setFont(font_name, 9)
-                y = height - 48
-            pdf.drawString(42, y, line)
-            y -= 14
-    pdf.save()
+    regular, bold = _register_unicode_fonts()
+    wide = any(section.get("wide") for section in sections)
+    pagesize = landscape(A4) if wide else A4
+    doc = SimpleDocTemplate(str(output), pagesize=pagesize, leftMargin=18 * mm, rightMargin=18 * mm, topMargin=18 * mm, bottomMargin=18 * mm, title=title, author="EvidLock Light")
+
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle("EvidTitle", parent=styles["Title"], fontName=bold, fontSize=19, leading=23, textColor=colors.HexColor("#111827"), alignment=TA_LEFT, spaceAfter=5 * mm)
+    subtitle_style = ParagraphStyle("EvidSubtitle", parent=styles["Normal"], fontName=regular, fontSize=9.5, leading=13, textColor=colors.HexColor("#4b5563"), spaceAfter=5 * mm)
+    heading_style = ParagraphStyle("EvidHeading", parent=styles["Heading2"], fontName=bold, fontSize=12, leading=15, textColor=colors.HexColor("#111827"), spaceBefore=4 * mm, spaceAfter=2.5 * mm, keepWithNext=True)
+    body_style = ParagraphStyle("EvidBody", parent=styles["BodyText"], fontName=regular, fontSize=8.5, leading=11, textColor=colors.HexColor("#1f2937"), alignment=TA_LEFT)
+    small_style = ParagraphStyle("EvidSmall", parent=body_style, fontSize=7.2, leading=9)
+    key_style = ParagraphStyle("EvidKey", parent=body_style, fontName=bold, textColor=colors.HexColor("#111827"))
+    header_style = ParagraphStyle("EvidHeader", parent=small_style, fontName=bold, textColor=colors.white)
+
+    story = [Paragraph(html.escape(title), title_style)]
+    if subtitle:
+        story.append(Paragraph(html.escape(subtitle), subtitle_style))
+    info = {"Data utworzenia": dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), **(metadata or {})}
+    info_table = Table([[_paragraph(key, key_style), _paragraph(value, body_style)] for key, value in info.items()], colWidths=[42 * mm, doc.width - 42 * mm])
+    info_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#f3f4f6")),
+        ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#d1d5db")),
+        ("INNERGRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#e5e7eb")),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6), ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 5), ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+    ]))
+    story.extend([info_table, Spacer(1, 4 * mm)])
+
+    for section in sections:
+        if section.get("page_break"):
+            story.append(PageBreak())
+        heading = section.get("title")
+        if heading:
+            story.append(Paragraph(html.escape(str(heading)), heading_style))
+        if section.get("text"):
+            story.extend([_paragraph(section["text"], body_style), Spacer(1, 2 * mm)])
+        rows = section.get("rows") or []
+        if rows:
+            data = [[_paragraph(key, key_style), _paragraph(value, body_style)] for key, value in rows]
+            table = Table(data, colWidths=[45 * mm, doc.width - 45 * mm], repeatRows=0)
+            table.setStyle(TableStyle([
+                ("ROWBACKGROUNDS", (0, 0), (-1, -1), [colors.white, colors.HexColor("#f9fafb")]),
+                ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#d1d5db")),
+                ("INNERGRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#e5e7eb")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6), ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("TOPPADDING", (0, 0), (-1, -1), 5), ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ]))
+            story.extend([table, Spacer(1, 3 * mm)])
+        table_data = section.get("table")
+        if table_data:
+            headers = section.get("headers") or []
+            prepared = [[_paragraph(value, header_style) for value in headers]] if headers else []
+            prepared.extend([[_paragraph(value, small_style) for value in row] for row in table_data])
+            widths = section.get("widths")
+            table = Table(prepared, colWidths=widths, repeatRows=1 if headers else 0)
+            table.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1f2937")) if headers else ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white) if headers else ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#111827")),
+                ("ROWBACKGROUNDS", (0, 1 if headers else 0), (-1, -1), [colors.white, colors.HexColor("#f9fafb")]),
+                ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
+                ("INNERGRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#e5e7eb")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 4), ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ]))
+            story.extend([table, Spacer(1, 3 * mm)])
+
+    def footer(canvas, document):
+        canvas.saveState()
+        canvas.setFont(regular, 7.5)
+        canvas.setFillColor(colors.HexColor("#6b7280"))
+        canvas.drawString(18 * mm, 9 * mm, "EvidLock Light")
+        canvas.drawRightString(pagesize[0] - 18 * mm, 9 * mm, f"Strona {document.page}")
+        canvas.restoreState()
+
+    doc.build(story, onFirstPage=footer, onLaterPages=footer)
     return output
 
 
-def result_rows(data: object) -> list[tuple[str, str]]:
-    """Spłaszcza wynik dowolnego modułu do czytelnych wierszy raportu."""
+def write_simple_pdf(title: str, rows: Iterable[tuple[str, str]], path: str | Path | None = None) -> Path:
+    return write_professional_pdf(title, [{"title": "Szczegóły", "rows": list(rows)}], path=path)
 
+
+def result_rows(data: object) -> list[tuple[str, str]]:
     if isinstance(data, dict):
-        rows: list[tuple[str, str]] = []
-        for key, value in data.items():
-            text = json.dumps(value, ensure_ascii=False, indent=2) if isinstance(value, (dict, list)) else str(value)
-            rows.append((str(key), text))
-        return rows
+        return [(str(key), json.dumps(value, ensure_ascii=False, indent=2, default=str) if isinstance(value, (dict, list)) else str(value)) for key, value in data.items()]
     if isinstance(data, list):
-        return [(str(index), json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else str(value)) for index, value in enumerate(data, 1)]
+        return [(str(index), json.dumps(value, ensure_ascii=False, default=str) if isinstance(value, (dict, list)) else str(value)) for index, value in enumerate(data, 1)]
     return [("Wynik", str(data))]
 
 
 def write_result_pdf(title: str, data: object, path: str | Path | None = None) -> Path:
-    """Zapisuje aktualny wynik dowolnej funkcji jako raport PDF."""
-
-    return write_simple_pdf(title, result_rows(data), path=path)
+    return write_professional_pdf(title, [{"title": "Wynik operacji", "rows": result_rows(data)}], path=path)
 
 
 def find_pdf(data: object) -> Path | None:
-    """Znajduje istniejący PDF w wyniku zwróconym przez dowolny moduł."""
-
     if isinstance(data, dict):
         for key in ("pdf", "report_pdf"):
             candidate = data.get(key)
@@ -104,43 +187,8 @@ def find_pdf(data: object) -> Path | None:
 
 
 def open_pdf(path: str | Path) -> Path:
-    """Otwiera PDF w domyślnej przeglądarce systemowej Windows."""
-
     target = Path(path).resolve()
     if not target.is_file() or target.suffix.lower() != ".pdf":
         raise FileNotFoundError(f"Nie znaleziono raportu PDF: {target}")
     os.startfile(str(target))
     return target
-
-
-def _register_unicode_font() -> str:
-    candidates = [
-        Path("C:/Windows/Fonts/segoeui.ttf"),
-        Path("C:/Windows/Fonts/arial.ttf"),
-        Path("C:/Windows/Fonts/calibri.ttf"),
-    ]
-    for font_path in candidates:
-        if font_path.exists():
-            name = font_path.stem.replace(" ", "_")
-            try:
-                pdfmetrics.registerFont(TTFont(name, str(font_path)))
-                return name
-            except Exception:
-                continue
-    return "Helvetica"
-
-
-def _wrap(text: str, width: int) -> list[str]:
-    words = str(text).split()
-    lines: list[str] = []
-    current: list[str] = []
-    for word in words:
-        candidate = " ".join(current + [word])
-        if len(candidate) > width and current:
-            lines.append(" ".join(current))
-            current = [word]
-        else:
-            current.append(word)
-    if current:
-        lines.append(" ".join(current))
-    return lines or [""]

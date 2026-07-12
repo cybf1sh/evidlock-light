@@ -2,6 +2,19 @@
 
 ## 2026-07-12 - samodzielne repo i pełne moduły Windows
 
+- Zastąpiono prosty generator PDF profesjonalnym silnikiem Unicode z sekcjami, tabelami, stopką i numeracją stron.
+- Naprawiono polskie znaki w raportach nośników, logów, SHA-256 i One-click.
+- Rozbudowano raport nośników oraz raport PDF logów Windows o parametry, EVTX, SHA-256 i próbkę zdarzeń.
+- Podgląd raportu ma A-/A+, zapis TXT, zapis PDF i przeglądanie bieżącego PDF.
+- Okno nośników po wygenerowaniu aktywuje linki Otwórz katalog i Przeglądaj PDF.
+- Dodano Narzędzia PDF: tworzenie bez nagłówka oraz szyfrowanie AES-256 z hasłem minimum 8 znaków.
+- Pliki narzędzi PDF są zapisywane w osobnym katalogu `raporty/PDF`.
+- Zmieniono Archiwizacja ZIP na Archiwizuj z ZIP AES-256 i 7z AES-256.
+- SHA-256 automatycznie tworzy i otwiera raport w `raporty/suma-kontrolna`.
+- Dodano One-click z ikoną V2: read-only, SHA-256, profesjonalny PDF, szyfrowane archiwum i pasek postępu.
+- One-click jest dostępny w nagłówku, Narzędziach i domyślnych narzędziach podręcznych.
+- Górny pasek pokazuje wersję zamiast przycisku O programie; O programie zawiera twórcę jak V2.
+- Diagnostyka pokazuje więcej danych systemowych, ścieżek i bibliotek oraz umożliwia kopiowanie.
 - Uporządkowano lewe menu: Dashboard, rozwijane Narzędzia w czterech kategoriach, Raporty, Konsola i O programie.
 - Usunięto z menu osobną pozycję Szybkie akcje oraz oddzielne pozycje modułów; kategorie odpowiadają zakładkom Dashboardu.
 - Zintegrowano nagłówek narzędzi podręcznych z panelem zakładek i poprawiono wykorzystanie wysokości Dashboardu.

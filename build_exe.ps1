@@ -35,7 +35,7 @@ if (-not (Test-Path $Python)) {
     throw "Brak samodzielnego srodowiska .venv. Uruchom najpierw .\setup_dev.ps1."
 }
 
-& $Python -c "import customtkinter, tkinterdnd2, openpyxl, PyInstaller" 2>$null
+& $Python -c "import customtkinter, tkinterdnd2, openpyxl, PyInstaller, pypdf, cryptography, pyzipper, py7zr" 2>$null
 if ($LASTEXITCODE -ne 0) {
     throw "Brak zaleznosci buildu. Zainstaluj customtkinter i pyinstaller w .venv."
 }

@@ -26,8 +26,10 @@ Główny ekran pokazuje tylko aktywne narzędzia w czterech zakładkach: `Dane i
 Lewe menu zawiera `Dashboard`, rozwijane `Narzędzia` z tymi samymi czterema kategoriami, a następnie `Raporty`, `Konsola` i `O programie`. Widok kategorii korzysta z kompaktowych, dwukolumnowych kafli.
 
 - Nośniki: jedno odświeżane okno dysków, oryginalne ikony PNG USB/lokalny/sieciowy/optyczny z EvidLockV2, zajętość oraz raport PDF/JSON.
-- Hash SHA-256: pliki, katalogi, manifest JSON/CSV, weryfikacja manifestu.
-- Zabezpieczenie danych: archiwizacja ZIP, kopia 1:1, porównanie A/B.
+- Hash SHA-256: pliki, katalogi, manifest JSON/CSV, weryfikacja manifestu oraz profesjonalny PDF w `raporty/suma-kontrolna`.
+- Zabezpieczenie danych: archiwizacja ZIP AES-256 i 7z AES-256, kopia 1:1, porównanie A/B.
+- One-click: read-only, SHA-256 każdego pliku, tabelaryczny raport PDF oraz szyfrowany ZIP/7z w `raporty/One-click`.
+- Narzędzia PDF: tworzenie PDF bez nagłówka i szyfrowanie AES-256; hasło minimum 8 znaków, wyniki w `raporty/PDF`.
 - Kopia i porównanie: osobne okno, pasek postępu, automatyczna weryfikacja SHA-256 oraz raport PDF/TXT/JSON.
 - Atrybut tylko do odczytu: jeden panel sprawdzania statusu, ustawiania i zdejmowania atrybutu dla plików/katalogów.
 - Network: skaner portów TCP, diagnostyka hosta, status TShark oraz przycisk instalacji oficjalnego Wireshark przez winget.
@@ -64,6 +66,10 @@ Przykładowe komendy w konsoli aplikacji:
 - `network scan --host 192.168.1.1 --ports 22,80,443`
 - `network deps`
 - `memory compare --a C:\ram-a.raw --b D:\ram-b.raw`
+- `pdf create --src C:\dane.txt --password Tajne123`
+- `pdf encrypt --src C:\raport.pdf --password Tajne123`
+- `archive --src C:\dane --out D:\pakiet.7z --format 7z --password Tajne123`
+- `one-click --src C:\dane --password Tajne123 --format zip`
 - `system journal-export --json`
 - `system logs-export --json`
 - `system diagnostics --json`
